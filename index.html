@@ -1257,6 +1257,7 @@ function showBoutiqueHistory() {
                                 <th style="padding: 10px; text-align: left;">Date</th>
                                 <th style="padding: 10px; text-align: left;">Client</th>
                                 <th style="padding: 10px; text-align: right;">Montant</th>
+                                <th style="padding: 10px; text-align: center;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1278,17 +1279,28 @@ function showBoutiqueHistory() {
                     totalCA += facture.total || 0;
                     
                     html += `
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 10px;">
-                                <strong>${facture.invoiceNumber || 'N/A'}</strong>
-                            </td>
-                            <td style="padding: 10px;">${dateStr}</td>
-                            <td style="padding: 10px;">${facture.client?.name || 'Anonyme'}</td>
-                            <td style="padding: 10px; text-align: right; font-weight: bold;">
-                                ${(facture.total || 0).toLocaleString('fr-FR')} F CFA
-                            </td>
-                        </tr>
-                    `;
+    <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 10px;">
+            <strong>${facture.invoiceNumber || 'N/A'}</strong>
+        </td>
+        <td style="padding: 10px;">${dateStr}</td>
+        <td style="padding: 10px;">${facture.client?.name || 'Anonyme'}</td>
+        <td style="padding: 10px; text-align: right; font-weight: bold;">
+            ${(facture.total || 0).toLocaleString('fr-FR')} F CFA
+        </td>
+        <td style="padding: 10px; text-align: center;">
+            <!-- AJOUTEZ CES BOUTONS -->
+            <button onclick="viewInvoiceFromHistory('${facture.id}')" 
+                    style="background: #3b82f6; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; margin-right: 5px; font-size: 0.8rem;">
+                <i class="fas fa-eye"></i> Détails
+            </button>
+            <button onclick="regeneratePDF('${facture.id}')" 
+                    style="background: #10b981; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem;">
+                <i class="fas fa-file-pdf"></i> PDF
+            </button>
+        </td>
+    </tr>
+`;
                 });
                 
                 html += `
@@ -1565,6 +1577,380 @@ function showBoutiqueStats() {
             console.error('Erreur statistiques:', error);
             showMessage('Erreur chargement statistiques', 'error');
         });
+}
+  
+  // ==============================================
+// FONCTIONS POUR L'HISTORIQUE (VERSION SIMPLE)
+// ==============================================
+
+// Fonction pour voir les détails d'une facture depuis l'historique
+function viewInvoiceFromHistory(invoiceId) {
+    console.log('Voir facture:', invoiceId);
+    
+    db.collection('invoices').doc(invoiceId).get()
+        .then(doc => {
+            if (!doc.exists) {
+                showMessage('Facture non trouvée', 'error');
+                return;
+            }
+            
+            const invoice = doc.data();
+            showSimpleInvoiceModal(invoice, invoiceId);
+            
+        }).catch(error => {
+            console.error('Erreur:', error);
+            showMessage('Erreur de chargement', 'error');
+        });
+}
+
+// Fonction simple pour afficher les détails
+function showSimpleInvoiceModal(invoice, invoiceId) {
+    // Formater la date
+    let date;
+    if (invoice.date && invoice.date.seconds) {
+        date = new Date(invoice.date.seconds * 1000);
+    } else {
+        date = new Date(invoice.date || Date.now());
+    }
+    
+    const dateStr = `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`;
+    
+    // Créer le HTML simple
+    let itemsHTML = '';
+    if (invoice.items && invoice.items.length > 0) {
+        invoice.items.forEach(item => {
+            itemsHTML += `
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
+                    <div>${item.name} (${item.weight})</div>
+                    <div>${item.quantity} × ${item.price?.toLocaleString('fr-FR')} = <strong>${item.subtotal?.toLocaleString('fr-FR')} F CFA</strong></div>
+                </div>
+            `;
+        });
+    }
+    
+    // Modal HTML
+    const modalHTML = `
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;">
+            <div style="background: white; border-radius: 10px; padding: 20px; width: 100%; max-width: 500px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: #333;">Facture ${invoice.invoiceNumber || ''}</h3>
+                    <button onclick="closeModal()" style="background: none; border: none; font-size: 1.2rem; cursor: pointer;">×</button>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <p><strong>Date:</strong> ${dateStr}</p>
+                    <p><strong>Client:</strong> ${invoice.client?.name || 'Non renseigné'}</p>
+                    <p><strong>Téléphone:</strong> ${invoice.client?.phone || '--'}</p>
+                </div>
+                
+                <div style="margin-bottom: 15px; max-height: 300px; overflow-y: auto;">
+                    ${itemsHTML || '<p>Aucun article</p>'}
+                </div>
+                
+                <div style="border-top: 2px solid #333; padding-top: 10px; font-size: 1.2rem; font-weight: bold; text-align: right;">
+                    TOTAL: ${(invoice.total || 0).toLocaleString('fr-FR')} F CFA
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button onclick="generatePDFFromHistory('${invoiceId}')" 
+                            style="flex: 1; background: #10b981; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">
+                        <i class="fas fa-file-pdf"></i> Générer PDF
+                    </button>
+                    <button onclick="closeModal()" 
+                            style="flex: 1; background: #666; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">
+                        Fermer
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Ajouter au body
+    const modalDiv = document.createElement('div');
+    modalDiv.id = 'simpleInvoiceModal';
+    modalDiv.innerHTML = modalHTML;
+    document.body.appendChild(modalDiv);
+}
+
+// Fonction pour fermer la modal
+function closeModal() {
+    const modal = document.getElementById('simpleInvoiceModal');
+    if (modal) modal.remove();
+}
+
+// ==============================================
+// FONCTION PRINCIPALE POUR GÉNÉRER LE PDF
+// ==============================================
+
+// Fonction pour générer le PDF depuis l'historique (UTILISE LA MÊME FONCTION)
+function generatePDFFromHistory(invoiceId) {
+    console.log('Générer PDF depuis historique:', invoiceId);
+    
+    showMessage('Préparation du PDF...', 'warning');
+    
+    db.collection('invoices').doc(invoiceId).get()
+        .then(doc => {
+            if (!doc.exists) {
+                showMessage('Facture non trouvée', 'error');
+                return;
+            }
+            
+            const invoice = doc.data();
+            
+            // 1. Fermer toutes les modals ouvertes
+            closeModal();
+            const historyModal = document.getElementById('historyModal');
+            if (historyModal) historyModal.remove();
+            
+            // 2. Préparer les données exactement comme une nouvelle facture
+            prepareInvoiceForPDF(invoice);
+            
+            // 3. Générer le PDF IMMÉDIATEMENT (même fonction que pour nouvelle facture)
+            generatePDFDirect();
+            
+        }).catch(error => {
+            console.error('Erreur:', error);
+            showMessage('Erreur lors de la génération du PDF', 'error');
+        });
+}
+
+// Préparer les données pour le PDF
+function prepareInvoiceForPDF(invoice) {
+    // Réinitialiser les items sélectionnés
+    selectedItems = {};
+    
+    // Remplir selectedItems comme si c'était une nouvelle facture
+    if (invoice.items && invoice.items.length > 0) {
+        invoice.items.forEach(item => {
+            // Trouver l'ID de la catégorie correspondante
+            const catId = findCategoryId(item.name);
+            if (catId) {
+                selectedItems[catId] = {
+                    id: catId,
+                    name: item.name,
+                    weight: item.weight,
+                    price: item.price,
+                    quantity: item.quantity,
+                    subtotal: item.subtotal
+                };
+            }
+        });
+    }
+    
+    // Mettre à jour currentInvoice
+    currentInvoice = {
+        ...invoice,
+        items: invoice.items || [],
+        total: invoice.total || 0
+    };
+    
+    // Mettre à jour l'affichage du total (optionnel)
+    document.getElementById('totalAmount').textContent = (invoice.total || 0).toLocaleString('fr-FR') + ' F CFA';
+    updateSelectedItemsList();
+}
+
+// Trouver l'ID de catégorie par nom
+function findCategoryId(name) {
+    const categoriesMap = {
+        'Très petits': '1',
+        'Petits': '2', 
+        'Moyens-petits': '3',
+        'Moyens': '4',
+        'Moyens-grands': '5',
+        'Grands': '6',
+        'Très grands': '7',
+        'Géants': '8'
+    };
+    
+    // Chercher par nom complet ou partiel
+    for (const [key, value] of Object.entries(categoriesMap)) {
+        if (name.includes(key)) {
+            return value;
+        }
+    }
+    
+    // Fallback: premier mot
+    const firstWord = name.split(' ')[0];
+    return categoriesMap[firstWord] || '1';
+}
+
+// ==============================================
+// FONCTION DIRECTE POUR GÉNÉRER LE PDF
+// ==============================================
+
+// Version directe de generatePDF() sans vérifications
+function generatePDFDirect() {
+    if (!currentInvoice || (!currentInvoice.items && Object.keys(selectedItems).length === 0)) {
+        showMessage('Aucune donnée pour générer le PDF', 'error');
+        return;
+    }
+    
+    // Utiliser les données de currentInvoice
+    const invoice = currentInvoice;
+    
+    // Charger jsPDF
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    let currentY = 20;
+    
+    // EN-TÊTE AVEC BOUTIQUE
+    try {
+        const logoUrl = 'https://i.postimg.cc/0QBKNcGj/photo-5782651308169956527-x.jpg';
+        doc.addImage(logoUrl, 'JPEG', margin, currentY, 30, 30);
+    } catch (e) {
+        doc.setFillColor(59, 130, 246);
+        doc.rect(margin, currentY, 30, 30, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(12);
+        doc.text(invoice.boutique === 'sacre-coeur' ? "SC3" : "KM", margin + 15, currentY + 15, { align: 'center', baseline: 'middle' });
+    }
+    
+    // Titre
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.text("DAKAR CHICKEN EXPRESS", pageWidth / 2, currentY + 10, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.text(invoice.boutiqueName || (invoice.boutique === 'sacre-coeur' ? 'SACRÉ COEUR 3' : 'KEUR MASSAR'), pageWidth / 2, currentY + 20, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Tél: ${invoice.boutiquePhone || '77 77 77 77 77'}`, pageWidth / 2, currentY + 28, { align: 'center' });
+    
+    currentY += 45;
+    
+    // Informations facture
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("FACTURE", margin, currentY);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`N°: ${invoice.invoiceNumber || 'N/A'}`, pageWidth - margin, currentY, { align: 'right' });
+    currentY += 10;
+    
+    // Date
+    let date;
+    if (invoice.date && invoice.date.seconds) {
+        date = new Date(invoice.date.seconds * 1000);
+    } else {
+        date = new Date(invoice.date || Date.now());
+    }
+    
+    doc.text(`Date: ${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`, pageWidth - margin, currentY, { align: 'right' });
+    currentY += 10;
+    doc.text(`Heure: ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`, pageWidth - margin, currentY, { align: 'right' });
+    currentY += 15;
+    
+    // Ligne
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, currentY, pageWidth - margin, currentY);
+    currentY += 10;
+    
+    // Informations client
+    if (invoice.client && invoice.client.name && invoice.client.name !== 'Client non renseigné') {
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text("CLIENT:", margin, currentY);
+        
+        doc.setFont("helvetica", "normal");
+        currentY += 7;
+        doc.text(`Nom: ${invoice.client.name}`, margin + 10, currentY);
+        currentY += 5;
+        
+        if (invoice.client.phone && invoice.client.phone !== 'Non renseigné') {
+            doc.text(`Tél: ${invoice.client.phone}`, margin + 10, currentY);
+            currentY += 5;
+        }
+        
+        if (invoice.client.address && invoice.client.address !== 'Non renseigné') {
+            doc.text(`Adresse: ${invoice.client.address}`, margin + 10, currentY);
+            currentY += 5;
+        }
+        
+        currentY += 10;
+    }
+    
+    // DÉTAILS
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("DÉTAIL DE LA COMMANDE", margin, currentY);
+    currentY += 10;
+    
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, currentY, pageWidth - margin, currentY);
+    currentY += 5;
+    
+    // En-tête tableau
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("DESCRIPTION", margin, currentY);
+    doc.text("QUANTITÉ", margin + 100, currentY);
+    doc.text("PRIX UNIT.", margin + 130, currentY);
+    doc.text("TOTAL", pageWidth - margin - 30, currentY, { align: 'right' });
+    currentY += 7;
+    
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, currentY, pageWidth - margin, currentY);
+    currentY += 10;
+    
+    // Articles
+    doc.setFont("helvetica", "normal");
+    if (invoice.items && invoice.items.length > 0) {
+        invoice.items.forEach(item => {
+            if (currentY > 250) {
+                doc.addPage();
+                currentY = 20;
+            }
+            
+            doc.text(`${item.name} (${item.weight})`, margin, currentY);
+            doc.text(item.quantity.toString(), margin + 100, currentY);
+            doc.text(`${item.price.toLocaleString('fr-FR')} F CFA`, margin + 130, currentY);
+            doc.text(`${item.subtotal.toLocaleString('fr-FR')} F CFA`, pageWidth - margin, currentY, { align: 'right' });
+            
+            currentY += 10;
+        });
+    }
+    
+    currentY += 10;
+    
+    // Ligne de séparation
+    doc.setDrawColor(100, 100, 100);
+    doc.line(margin, currentY, pageWidth - margin, currentY);
+    currentY += 15;
+    
+    // TOTAL
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("TOTAL TTC:", pageWidth - margin - 50, currentY);
+    doc.text(`${invoice.total.toLocaleString('fr-FR')} F CFA`, pageWidth - margin, currentY, { align: 'right' });
+    
+    currentY += 20;
+    
+    // SIGNATURE
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("Signature:", margin, currentY);
+    currentY += 20;
+    
+    doc.setDrawColor(100, 100, 100);
+    doc.line(margin, currentY, margin + 80, currentY);
+    
+    // PIED DE PAGE
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text("Merci pour votre confiance !", pageWidth / 2, 280, { align: 'center' });
+    doc.text("DAKAR CHICKEN EXPRESS", pageWidth / 2, 285, { align: 'center' });
+    
+    // Sauvegarder
+    const fileName = `Facture_${invoice.invoiceNumber || 'recu'}.pdf`;
+    doc.save(fileName);
+    
+    showMessage('PDF généré avec succès!', 'success');
 }
     </script>
    
