@@ -8,15 +8,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-     <link rel="icon" type="image/x-icon" href="https://i.postimg.cc/0QBKNcGj/photo-5782651308169956527-x.jpg">
-<link rel="apple-touch-icon" href="https://i.postimg.cc/0QBKNcGj/photo-5782651308169956527-x.jpg">
-<link rel="manifest" href="/poulailler/manifest.json">
-
- <meta name="theme-color" content="#3B82F6">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="DCE Poulailler">
-    
     <style>
         * {
             margin: 0;
@@ -418,11 +409,11 @@
         </div>
         
         <div class="buttons-grid">
-            <button id="invoiceBtn" class="action-btn">
-                <i class="fas fa-receipt"></i>
-                <span style="font-size: 1.2rem; font-weight: bold;">Nouvelle Facture</span>
-                <small>Créer une nouvelle facture client</small>
-            </button>
+           <button id="selectProductionBtn" class="action-btn">
+    <i class="fas fa-clipboard-list"></i>
+    <span style="font-size: 1.2rem; font-weight: bold;">Nouvelle Facture</span>
+    <small>Sélectionner d'abord une production</small>
+</button>
             
             <button id="historyBtn" class="action-btn">
                 <i class="fas fa-history"></i>
@@ -584,7 +575,7 @@
                             inputs[index + 1].focus();
                         }
                     }
-                    
+                     
                     // Vérifier si tous les champs sont remplis
                     const allFilled = Array.from(inputs).every(input => input.value.length === 1);
                     if (allFilled) {
@@ -680,40 +671,35 @@
         }
         
         // Configuration des événements
-        function setupEventListeners() {
-            // Bouton de connexion
-            document.getElementById('loginBtn').addEventListener('click', handleLogin);
-            
-            // Bouton facture
-            document.getElementById('invoiceBtn').addEventListener('click', function() {
-                document.getElementById('mainInterface').style.display = 'none';
-                document.getElementById('invoicePage').style.display = 'block';
-                resetInvoiceForm();
-            });
-            
-            // Bouton retour
-            document.getElementById('backBtn').addEventListener('click', function() {
-                document.getElementById('invoicePage').style.display = 'none';
-                document.getElementById('mainInterface').style.display = 'block';
-            });
-            
-            // Bouton historique (MAINTENANT SEULEMENT POUR CETTE BOUTIQUE)
-          // Bouton historique
-document.getElementById('historyBtn').addEventListener('click', function() {
-    showBoutiqueHistory();
-});
-
-// Bouton statistiques
-document.getElementById('statsBtn').addEventListener('click', function() {
-    showBoutiqueStats();
-});
-            
-            // Bouton enregistrer
-            document.getElementById('saveBtn').addEventListener('click', saveInvoice);
-            
-            // Bouton générer PDF
-            document.getElementById('generateBtn').addEventListener('click', generatePDF);
-        }
+    function setupEventListeners() {
+    // Bouton de connexion
+    document.getElementById('loginBtn').addEventListener('click', handleLogin);
+    
+    // CORRECTION ICI : Bouton pour nouvelle facture (sélection production)
+    document.getElementById('selectProductionBtn').addEventListener('click', selectProductionForInvoice);
+    
+    // Bouton historique
+    document.getElementById('historyBtn').addEventListener('click', function() {
+        showBoutiqueHistory();
+    });
+    
+    // Bouton statistiques
+    document.getElementById('statsBtn').addEventListener('click', function() {
+        showBoutiqueStats();
+    });
+    
+    // Bouton retour (dans la page facturation)
+    document.getElementById('backBtn').addEventListener('click', function() {
+        document.getElementById('invoicePage').style.display = 'none';
+        document.getElementById('mainInterface').style.display = 'block';
+    });
+    
+    // Bouton enregistrer facture
+    document.getElementById('saveBtn').addEventListener('click', saveInvoice);
+    
+    // Bouton générer PDF
+    document.getElementById('generateBtn').addEventListener('click', generatePDF);
+}
         
         // Configuration des catégories
         function setupCategories() {
@@ -851,52 +837,115 @@ document.getElementById('statsBtn').addEventListener('click', function() {
         }
         
         // Enregistrer la facture dans Firebase (AVEC BOUTIQUE)
-        async function saveInvoice() {
-            const clientName = document.getElementById('clientName').value.trim();
-            const clientPhone = document.getElementById('clientPhone').value.trim();
-            
-            if (Object.keys(selectedItems).length === 0) {
-                showMessage('Veuillez sélectionner au moins un poulet', 'error');
-                return;
+   async function saveInvoice() {
+    const clientName = document.getElementById('clientName').value.trim();
+    const clientPhone = document.getElementById('clientPhone').value.trim();
+    
+    if (Object.keys(selectedItems).length === 0) {
+        showMessage('Veuillez sélectionner au moins un poulet', 'error');
+        return;
+    }
+    
+    // VÉRIFICATION SIMPLIFIÉE (enlevez la vérification stock si problème)
+    const invoiceData = {
+        boutique: currentBoutique.id,
+        boutiqueName: currentBoutique.name,
+        boutiquePhone: currentBoutique.phone,
+        productionId: currentInvoice.productionId || 'N/A',
+        productionDate: currentInvoice.productionData?.startDate || new Date(),
+        client: {
+            name: clientName || 'Client non renseigné',
+            phone: clientPhone || 'Non renseigné',
+            address: document.getElementById('clientAddress').value.trim() || 'Non renseigné'
+        },
+        items: Object.values(selectedItems),
+        total: parseInt(document.getElementById('totalAmount').textContent.replace(/\D/g, '')) || 0,
+        date: firebase.firestore.FieldValue.serverTimestamp(),
+        invoiceNumber: generateInvoiceNumber()
+    };
+    
+    try {
+        // SAUVEGARDE SIMPLE
+        const docRef = await db.collection('invoices').add(invoiceData);
+        
+        showMessage('Facture enregistrée!', 'success');
+        setTimeout(generatePDF, 1000);
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        showMessage("Erreur: " + error.message, 'error');
+    }
+}
+
+
+// Fonction pour mettre à jour les stocks dans la production (VERSION CORRIGÉE)
+async function updateProductionStocks(productionId, itemsSold) {
+    try {
+        const productionRef = db.collection('poulailler_records').doc(productionId);
+        const productionDoc = await productionRef.get();
+        
+        if (!productionDoc.exists) return;
+        
+        const production = productionDoc.data();
+        const updates = {};
+        
+        // Mapping des IDs de catégorie aux champs Firebase
+        const categoryFields = {
+            '1': 'small1Sold',
+            '2': 'small2Sold', 
+            '3': 'medium1Sold',
+            '4': 'medium2Sold',
+            '5': 'large1Sold',
+            '6': 'large2Sold',
+            '7': 'xlarge1Sold',
+            '8': 'xlarge2Sold'
+        };
+        
+        // Pour chaque catégorie vendue
+        Object.values(itemsSold).forEach(item => {
+            const soldField = categoryFields[item.id];
+            if (soldField) {
+                const currentSold = production[soldField] || 0;
+                updates[soldField] = currentSold + item.quantity;
+                
+                // VÉRIFICATION DE STOCK : ne pas dépasser le stock initial
+                const qtyField = soldField.replace('Sold', 'Quantity'); // small1Sold -> small1Quantity
+                const stockInitial = production[qtyField] || 0;
+                if (updates[soldField] > stockInitial) {
+                    console.warn(`Attention: Ventes (${updates[soldField]}) > Stock initial (${stockInitial}) pour ${soldField}`);
+                }
             }
-            
-            // Préparer les données de la facture AVEC BOUTIQUE
-            const invoiceData = {
-                boutique: currentBoutique.id,
-                boutiqueName: currentBoutique.name,
-                boutiquePhone: currentBoutique.phone,
-                client: {
-                    name: clientName || 'Client non renseigné',
-                    phone: clientPhone || 'Non renseigné',
-                    address: document.getElementById('clientAddress').value.trim() || 'Non renseigné'
-                },
-                items: Object.values(selectedItems),
-                total: parseInt(document.getElementById('totalAmount').textContent.replace(/\D/g, '')) || 0,
-                date: firebase.firestore.FieldValue.serverTimestamp(),
-                invoiceNumber: generateInvoiceNumber()
-            };
-            
-            try {
-                // Sauvegarder dans Firebase
-                const docRef = await db.collection('invoices').add(invoiceData);
-                
-                // Mettre à jour l'objet facture actuel
-                currentInvoice = {
-                    ...invoiceData,
-                    id: docRef.id,
-                    date: new Date()
-                };
-                
-                showMessage('Facture enregistrée avec succès!', 'success');
-                
-                // Générer automatiquement le PDF
-                setTimeout(generatePDF, 1000);
-                
-            } catch (error) {
-                console.error('Erreur lors de l\'enregistrement:', error);
-                showMessage('Erreur lors de l\'enregistrement', 'error');
-            }
-        }
+        });
+        
+        // Ajouter la date de mise à jour
+        updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+        updates.lastSaleDate = new Date().toISOString();
+        
+        // Mettre à jour
+        await productionRef.update(updates);
+        
+        console.log('Stocks mis à jour avec succès');
+        
+    } catch (error) {
+        console.error('Erreur mise à jour stocks:', error);
+        throw error;
+    }
+}
+
+// Fonction utilitaire pour obtenir la clé de vente
+function getSoldKeyForCategory(categoryId) {
+    const soldKeys = {
+        '1': 'small1Sold',
+        '2': 'small2Sold',
+        '3': 'medium1Sold',
+        '4': 'medium2Sold',
+        '5': 'large1Sold',
+        '6': 'large2Sold',
+        '7': 'xlarge1Sold',
+        '8': 'xlarge2Sold'
+    };
+    return soldKeys[categoryId] || 'small1Sold';
+}
         
         // Générer un numéro de facture avec boutique
         function generateInvoiceNumber() {
@@ -1940,8 +1989,7 @@ function generatePDFDirect() {
     
     currentY += 20;
     
-    // SIGNATURE
-    doc.setFontSize(10);
+     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     doc.text("Signature:", margin, currentY);
     currentY += 20;
@@ -1949,18 +1997,487 @@ function generatePDFDirect() {
     doc.setDrawColor(100, 100, 100);
     doc.line(margin, currentY, margin + 80, currentY);
     
-    // PIED DE PAGE
-    doc.setFontSize(8);
+     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
     doc.text("Merci pour votre confiance !", pageWidth / 2, 280, { align: 'center' });
     doc.text("DAKAR CHICKEN EXPRESS", pageWidth / 2, 285, { align: 'center' });
     
-    // Sauvegarder
-    const fileName = `Facture_${invoice.invoiceNumber || 'recu'}.pdf`;
+     const fileName = `Facture_${invoice.invoiceNumber || 'recu'}.pdf`;
     doc.save(fileName);
     
     showMessage('PDF généré avec succès!', 'success');
 }
+  
+  
+function selectProductionForInvoice() {
+    if (!currentBoutique) {
+        showMessage('Veuillez d\'abord vous connecter', 'error');
+        return;
+    }
+    
+    // Afficher le chargement
+    showMessage('Chargement des productions disponibles...', 'warning');
+    
+    // Charger les productions du site principal
+    db.collection('poulailler_records')
+        .orderBy('startDate', 'desc')
+        .limit(20)
+        .get()
+        .then(snapshot => {
+            if (snapshot.empty) {
+                showMessage('Aucune production disponible', 'error');
+                return;
+            }
+            
+            // Créer la modal de sélection
+            const modal = document.createElement('div');
+            modal.id = 'selectProductionModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+                padding: 20px;
+            `;
+            
+            let productionsHTML = '';
+            snapshot.forEach(doc => {
+                const production = doc.data();
+                const date = new Date(production.startDate);
+                const dateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth()+1).padStart(2, '0')}/${date.getFullYear()}`;
+                
+                // LES 8 CATÉGORIES COMME DANS L'ANCIEN SITE
+                const categories = [
+                    { id: 1, name: 'Très P', qtyField: 'small1Quantity', soldField: 'small1Sold', priceField: 'small1Price' },
+                    { id: 2, name: 'Petits', qtyField: 'small2Quantity', soldField: 'small2Sold', priceField: 'small2Price' },
+                    { id: 3, name: 'Moy-P', qtyField: 'medium1Quantity', soldField: 'medium1Sold', priceField: 'medium1Price' },
+                    { id: 4, name: 'Moyens', qtyField: 'medium2Quantity', soldField: 'medium2Sold', priceField: 'medium2Price' },
+                    { id: 5, name: 'Moy-G', qtyField: 'large1Quantity', soldField: 'large1Sold', priceField: 'large1Price' },
+                    { id: 6, name: 'Grands', qtyField: 'large2Quantity', soldField: 'large2Sold', priceField: 'large2Price' },
+                    { id: 7, name: 'Très G', qtyField: 'xlarge1Quantity', soldField: 'xlarge1Sold', priceField: 'xlarge1Price' },
+                    { id: 8, name: 'Géants', qtyField: 'xlarge2Quantity', soldField: 'xlarge2Sold', priceField: 'xlarge2Price' }
+                ];
+                
+                // CALCULER CORRECTEMENT LE STOCK
+                let stockTotal = 0;      // Stock initial total
+                let disponibleTotal = 0; // Total disponible pour vente
+                let venduTotal = 0;      // Total déjà vendu
+                
+                categories.forEach(cat => {
+                    const stockInitial = production[cat.qtyField] || 0;
+                    const dejaVendu = production[cat.soldField] || 0;
+                    const disponible = Math.max(0, stockInitial - dejaVendu);
+                    
+                    stockTotal += stockInitial;
+                    disponibleTotal += disponible;
+                    venduTotal += dejaVendu;
+                });
+                
+                // Calculer le stock restant réel (initial - vendus - perdus/donnés)
+                const totalSold = venduTotal;
+                const totalLostGiven = (production.lost || 0) + (production.given || 0);
+                const stockRestant = Math.max(0, stockTotal - totalSold - totalLostGiven);
+                
+                productionsHTML += `
+                    <div class="production-card" data-id="${doc.id}" 
+                         style="background: white; border: 2px solid #e0e0e0; border-radius: 10px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s;">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div>
+                                <div style="font-weight: bold; color: #333;">Production du ${dateStr}</div>
+                                <div style="color: #666; font-size: 0.9rem; margin-top: 5px;">
+                                    <span style="color: ${disponibleTotal > 0 ? '#10b981' : '#ef4444'}; font-weight: bold;">
+                                        ${disponibleTotal} poulets disponibles pour vente
+                                    </span>
+                                </div>
+                                <div style="font-size: 0.8rem; color: #666; margin-top: 3px;">
+                                    Stock initial: ${stockTotal} | Déjà vendus: ${venduTotal} | Perdus/donnés: ${totalLostGiven}
+                                </div>
+                                <div style="font-size: 0.8rem; color: #3b82f6; margin-top: 3px; font-weight: bold;">
+                                    Stock restant réel: ${stockRestant}
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="background: #f0f9ff; color: #0369a1; padding: 5px 10px; border-radius: 5px; font-size: 0.9rem; font-weight: bold;">
+                                    ${stockTotal} initial
+                                </div>
+                                
+                            </div>
+                        </div>
+                        
+                        <!-- AFFICHAGE DÉTAILLÉ PAR CATÉGORIE -->
+                        <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 0.8rem;">
+                `;
+                
+               
+                
+                productionsHTML += `
+                            </div>
+                        </div>
+                        
+                        <!-- STATUS DE LA PRODUCTION -->
+                       
+                    </div>
+                `;
+            });
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 15px; padding: 25px; width: 100%; max-width: 900px; max-height: 80vh; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0; color: #333;">
+                            <i class="fas fa-seedling"></i> Sélectionner une Production
+                        </h2>
+                        <button onclick="document.getElementById('selectProductionModal').remove()" 
+                                style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px; color: #666;">
+                        <p>Sélectionnez la production pour laquelle vous voulez créer une facture :</p>
+                        <div style="background: #f0f9ff; padding: 10px; border-radius: 8px; margin-top: 10px; display: flex; gap: 10px;">
+                           
+                        </div>
+                    </div>
+                    
+                    <div id="productionsList" style="max-height: 400px; overflow-y: auto; padding-right: 10px;">
+                        ${productionsHTML}
+                    </div>
+                    
+                    <div style="margin-top: 20px; text-align: center;">
+                        <button onclick="document.getElementById('selectProductionModal').remove()" 
+                                style="background: #666; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer;">
+                            Annuler
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Ajouter les événements de clic
+            document.querySelectorAll('.production-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    const productionId = this.getAttribute('data-id');
+                    loadProductionForInvoice(productionId);
+                });
+                
+                // Effet hover
+                card.addEventListener('mouseenter', function() {
+                    this.style.borderColor = '#667eea';
+                    this.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.1)';
+                    this.style.transform = 'translateY(-2px)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.borderColor = '#e0e0e0';
+                    this.style.boxShadow = 'none';
+                    this.style.transform = 'translateY(0)';
+                });
+            });
+            
+        }).catch(error => {
+            console.error('Erreur chargement productions:', error);
+            showMessage('Erreur de chargement des productions', 'error');
+        });
+}
+
+function calculateProductionRevenue(production) {
+    // CALCULER LE REVENU DE TOUTES LES 8 CATÉGORIES
+    const revenue = (production.small1Sold || 0) * (production.small1Price || 2000) +
+                   (production.small2Sold || 0) * (production.small2Price || 2500) +
+                   (production.medium1Sold || 0) * (production.medium1Price || 3000) +
+                   (production.medium2Sold || 0) * (production.medium2Price || 3300) +
+                   (production.large1Sold || 0) * (production.large1Price || 3500) +
+                   (production.large2Sold || 0) * (production.large2Price || 3700) +
+                   (production.xlarge1Sold || 0) * (production.xlarge1Price || 4000) +
+                   (production.xlarge2Sold || 0) * (production.xlarge2Price || 4500);
+    
+    return revenue;
+}
+// Fonction pour charger une production spécifique
+function loadProductionForInvoice(productionId) {
+    console.log('Chargement production:', productionId);
+    
+    showMessage('Chargement des données de production...', 'warning');
+    
+    db.collection('poulailler_records').doc(productionId).get()
+        .then(doc => {
+            if (!doc.exists) {
+                showMessage('Production non trouvée', 'error');
+                return;
+            }
+            
+            const production = doc.data();
+            
+            // Fermer la modal de sélection
+            const modal = document.getElementById('selectProductionModal');
+            if (modal) modal.remove();
+            
+            // Ouvrir la page de facturation avec les données pré-remplies
+            openInvoicePageWithProduction(production, productionId);
+            
+        }).catch(error => {
+            console.error('Erreur:', error);
+            showMessage('Erreur de chargement', 'error');
+        });
+}
+
+// Ouvrir la page de facturation avec les données de production
+function openInvoicePageWithProduction(production, productionId) {
+    // Stocker l'ID de production
+    currentInvoice.productionId = productionId;
+    currentInvoice.productionData = production;
+    
+    // Afficher la page de facturation
+    document.getElementById('mainInterface').style.display = 'none';
+    document.getElementById('invoicePage').style.display = 'block';
+    
+    // Réinitialiser le formulaire
+    resetInvoiceForm();
+    
+    // Pré-remplir avec les prix de la production
+    if (production.small1Price) document.getElementById('cat-1').setAttribute('data-price', production.small1Price);
+    if (production.small2Price) document.getElementById('cat-2').setAttribute('data-price', production.small2Price);
+    if (production.medium1Price) document.getElementById('cat-3').setAttribute('data-price', production.medium1Price);
+    if (production.medium2Price) document.getElementById('cat-4').setAttribute('data-price', production.medium2Price);
+    if (production.large1Price) document.getElementById('cat-5').setAttribute('data-price', production.large1Price);
+    if (production.large2Price) document.getElementById('cat-6').setAttribute('data-price', production.large2Price);
+    if (production.xlarge1Price) document.getElementById('cat-7').setAttribute('data-price', production.xlarge1Price);
+    if (production.xlarge2Price) document.getElementById('cat-8').setAttribute('data-price', production.xlarge2Price);
+    
+    // Afficher les stocks disponibles
+    showAvailableStock(production);
+    
+    showMessage('Production chargée avec succès', 'success');
+}
+
+  
+// Fonction pour afficher les stocks disponibles (VERSION CORRIGÉE)
+function showAvailableStock(production) {
+    const stockInfo = document.createElement('div');
+    stockInfo.id = 'stockInfo';
+    stockInfo.style.cssText = `
+        background: #f0f9ff;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        border-left: 4px solid #3b82f6;
+    `;
+    
+    // CALCULER LE STOCK TOTAL CORRECTEMENT
+   const stockTotal = production.initialStock || 0;
+
+    
+    let stockHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h4 style="margin: 0; color: #0369a1;">
+                    <i class="fas fa-boxes-stacked"></i> Stocks Disponibles
+                </h4>
+                <p style="margin: 5px 0 0 0; color: #666; font-size: 0.9rem;">
+                    Production du ${formatDate(production.startDate)}
+                </p>
+            </div>
+            <div style="background: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; color: #0369a1;">
+                Stock initial: ${stockTotal}
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px;">
+    `;
+    
+    // LES 8 CATÉGORIES COMME DA'ANCIEN SITE
+    const categories = [
+        { 
+            id: 1, 
+            name: 'Très petits', 
+            weight: '1-1.1 kg',
+            qtyField: 'small1Quantity',
+            soldField: 'small1Sold',
+            priceField: 'small1Price'
+        },
+        { 
+            id: 2, 
+            name: 'Petits', 
+            weight: '1.2 kg',
+            qtyField: 'small2Quantity', 
+            soldField: 'small2Sold',
+            priceField: 'small2Price'
+        },
+        { 
+            id: 3, 
+            name: 'Moyens-petits', 
+            weight: '1.3-1.4 kg',
+            qtyField: 'medium1Quantity', 
+            soldField: 'medium1Sold',
+            priceField: 'medium1Price'
+        },
+        { 
+            id: 4, 
+            name: 'Moyens', 
+            weight: '1.5-1.6 kg',
+            qtyField: 'medium2Quantity', 
+            soldField: 'medium2Sold',
+            priceField: 'medium2Price'
+        },
+        { 
+            id: 5, 
+            name: 'Moyens-grands', 
+            weight: '1.7-1.9 kg',
+            qtyField: 'large1Quantity', 
+            soldField: 'large1Sold',
+            priceField: 'large1Price'
+        },
+        { 
+            id: 6, 
+            name: 'Grands', 
+            weight: '2 kg',
+            qtyField: 'large2Quantity', 
+            soldField: 'large2Sold',
+            priceField: 'large2Price'
+        },
+        { 
+            id: 7, 
+            name: 'Très grands', 
+            weight: '2.1-2.3 kg',
+            qtyField: 'xlarge1Quantity', 
+            soldField: 'xlarge1Sold',
+            priceField: 'xlarge1Price'
+        },
+        { 
+            id: 8, 
+            name: 'Géants', 
+            weight: '+2.4 kg',
+            qtyField: 'xlarge2Quantity', 
+            soldField: 'xlarge2Sold',
+            priceField: 'xlarge2Price'
+        }
+    ];
+    
+    categories.forEach(cat => {
+ const stockInitial = production[cat.qtyField] || 0;  // Ex: small1Quantity
+const dejaVendu = production[cat.soldField] || 0;    // Ex: small1Sold
+const disponible = Math.max(0, stockInitial - dejaVendu);
+        const prix = production[cat.priceField] || 0;
+        
+        stockHTML += `
+            <div style="text-align: center; background: white; padding: 10px; border-radius: 8px; border: 1px solid #e0e0e0;">
+                <div style="font-size: 0.9rem; font-weight: bold; color: #333; margin-bottom: 5px;">
+                    ${cat.name}
+                </div>
+                <div style="font-size: 0.8rem; color: #666; margin-bottom: 5px;">
+                    ${cat.weight}
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 3px;">
+                    <span style="color: #666;">Initial:</span>
+                    <span style="font-weight: bold;">${stockInitial}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 3px;">
+                    <span style="color: #666;">Vendu:</span>
+                    <span style="color: #ef4444;">${dejaVendu}</span>
+                </div>
+                <div style="border-top: 1px solid #e0e0e0; padding-top: 5px; margin-top: 5px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #666; font-size: 0.8rem;">Dispo:</span>
+                        <span style="font-weight: bold; color: ${disponible > 0 ? '#10b981' : '#ef4444'}; font-size: 1.1rem;">
+                            ${disponible}
+                        </span>
+                    </div>
+                    <div style="margin-top: 5px; font-size: 0.8rem; color: #3b82f6; text-align: right;">
+                        ${prix.toLocaleString('fr-FR')} F CFA
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    stockHTML += `</div>`;
+    
+    // Calculer le total disponible
+   // CALCUL DU STOCK RÉEL RESTANT (comme site principal)
+const stockInitialTotal = production.initialStock || 0;
+const totalVendu = categories.reduce((sum, cat) => {
+    return sum + (production[cat.soldField] || 0);
+}, 0);
+
+const totalPerduDonne = (production.lost || 0) + (production.given || 0);
+const stockReelRestant = Math.max(0, stockInitialTotal - totalVendu - totalPerduDonne);
+
+const totalDisponible = stockReelRestant; // ← Utilisez le stock réel
+    // CALCUL DU STOCK RÉEL ET SA VALEUR
+const stockReel = Math.max(0, (production.initialStock || 0) - 
+    ((production.small1Sold || 0) + (production.small2Sold || 0) + 
+     (production.medium1Sold || 0) + (production.medium2Sold || 0) +
+     (production.large1Sold || 0) + (production.large2Sold || 0) +
+     (production.xlarge1Sold || 0) + (production.xlarge2Sold || 0)) -
+    ((production.lost || 0) + (production.given || 0)));
+
+// Valeur estimée (prix moyen × stock réel)
+const prixMoyen = 3000; // Prix moyen estimé
+const valeurEstimee = stockReel * prixMoyen;
+
+// Puis utilisez stockReel au lieu de totalDisponible
+    // Ajouter un résumé
+    stockHTML += `
+        <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 8px; border: 1px solid #3b82f6; display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-weight: bold; color: #333;">
+                <i class="fas fa-chart-bar"></i> RÉSUMÉ
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.9rem; color: #666;">Stock restant réel</div>
+<div style="font-size: 1.2rem; font-weight: bold; color: #3b82f6;">
+    ${stockReel} poulets
+</div>
+<div style="font-size: 0.8rem; color: #10b981; margin-top: 5px;">
+    ≈ ${valeurEstimee.toLocaleString('fr-FR')} F CFA
+</div>
+            </div>
+        </div>
+    `;
+    
+    // Avertissement si stock épuisé
+    if (totalDisponible <= 0) {
+        stockHTML += `
+            <div style="margin-top: 10px; padding: 10px; background: #fee2e2; color: #dc2626; border-radius: 5px; text-align: center; font-weight: bold;">
+                <i class="fas fa-exclamation-triangle"></i> Stock épuisé !
+            </div>
+        `;
+    }
+    
+    stockInfo.innerHTML = stockHTML;
+    
+    // Insérer au début de la page de facturation
+    const invoicePage = document.getElementById('invoicePage');
+    const firstChild = invoicePage.children[0];
+    invoicePage.insertBefore(stockInfo, firstChild.nextSibling);
+    
+    // METTRE À JOUR LES PRIX DANS LES INPUTS
+    categories.forEach(cat => {
+        const input = document.getElementById(`cat-${cat.id}`);
+        if (input) {
+            const prix = production[cat.priceField] || categories[cat.id-1].price; // Prix par défaut
+            input.setAttribute('data-price', prix);
+            
+            // Mettre à jour l'affichage du prix dans la carte
+            const card = input.closest('.category-card');
+            if (card) {
+                const priceElement = card.querySelector('.category-price');
+                if (priceElement) {
+                    priceElement.textContent = `${prix.toLocaleString('fr-FR')} F CFA`;
+                }
+            }
+        }
+    });
+}
+
+ 
     </script>
    
 </body>
