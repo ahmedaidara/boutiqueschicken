@@ -865,78 +865,103 @@
     };
     
     try {
+      
         // SAUVEGARDE SIMPLE
         const docRef = await db.collection('invoices').add(invoiceData);
-        
+        await updateProductionStocks(currentInvoice.productionId, selectedItems);
+// METTRE À JOUR LE SITE PRINCIPAL (AJOUTEZ CES LIGNES)
+if (currentInvoice.productionId) {
+    await updateSoldCounts(currentInvoice.productionId, selectedItems);
+}
         showMessage('Facture enregistrée!', 'success');
         setTimeout(generatePDF, 1000);
-        
+      setTimeout(() => {
+    if (currentInvoice.productionId) {
+        // Recharger les données de la production
+        loadProductionForInvoice(currentInvoice.productionId);
+    }
+}, 2000);
+        // Force refresh
+setTimeout(() => {
+    alert('Facture enregistrée! Veuillez resélectionner la production.');
+    // Retour au menu principal
+    document.getElementById('invoicePage').style.display = 'none';
+    document.getElementById('mainInterface').style.display = 'block';
+    // Réouvrir la sélection
+    selectProductionForInvoice();
+}, 2000);
     } catch (error) {
         console.error('Erreur:', error);
         showMessage("Erreur: " + error.message, 'error');
     }
 }
 
-
-// Fonction pour mettre à jour les stocks dans la production (VERSION CORRIGÉE)
 async function updateProductionStocks(productionId, itemsSold) {
+    console.log("DEBUG: updateProductionStocks appelée avec:", productionId, itemsSold);
+    
+    if (!productionId) {
+        console.log("DEBUG: Aucun productionId");
+        return;
+    }
+    
     try {
         const productionRef = db.collection('poulailler_records').doc(productionId);
-        const productionDoc = await productionRef.get();
+        console.log("DEBUG: Référence production:", productionRef);
         
-        if (!productionDoc.exists) return;
+        // LIRE d'abord
+        const productionDoc = await productionRef.get();
+        console.log("DEBUG: Production existe?", productionDoc.exists);
+        
+        if (!productionDoc.exists) {
+            console.log("DEBUG: Production non trouvée");
+            return;
+        }
         
         const production = productionDoc.data();
+        console.log("DEBUG: Données production:", production);
+        
         const updates = {};
         
-        // Mapping des IDs de catégorie aux champs Firebase
-        const categoryFields = {
-            '1': 'small1Sold',
-            '2': 'small2Sold', 
-            '3': 'medium1Sold',
-            '4': 'medium2Sold',
-            '5': 'large1Sold',
-            '6': 'large2Sold',
-            '7': 'xlarge1Sold',
-            '8': 'xlarge2Sold'
-        };
-        
-        // Pour chaque catégorie vendue
+        // POUR CHAQUE ITEM VENDU
         Object.values(itemsSold).forEach(item => {
-            const soldField = categoryFields[item.id];
+            console.log("DEBUG: Traitement item:", item);
+            
+            const soldField = getSoldFieldForCategory(item.id);
+            console.log("DEBUG: soldField pour catégorie", item.id, ":", soldField);
+            
             if (soldField) {
                 const currentSold = production[soldField] || 0;
-                updates[soldField] = currentSold + item.quantity;
+                console.log("DEBUG: Actuellement vendu:", currentSold);
                 
-                // VÉRIFICATION DE STOCK : ne pas dépasser le stock initial
-                const qtyField = soldField.replace('Sold', 'Quantity'); // small1Sold -> small1Quantity
-                const stockInitial = production[qtyField] || 0;
-                if (updates[soldField] > stockInitial) {
-                    console.warn(`Attention: Ventes (${updates[soldField]}) > Stock initial (${stockInitial}) pour ${soldField}`);
-                }
+                updates[soldField] = currentSold + item.quantity;
+                console.log("DEBUG: Nouveau total:", updates[soldField]);
             }
         });
         
-        // Ajouter la date de mise à jour
-        updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-        updates.lastSaleDate = new Date().toISOString();
+        console.log("DEBUG: Updates à appliquer:", updates);
         
-        // Mettre à jour
-        await productionRef.update(updates);
-        
-        console.log('Stocks mis à jour avec succès');
+        if (Object.keys(updates).length > 0) {
+            updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+            await productionRef.update(updates);
+            console.log("DEBUG: Production mise à jour avec succès");
+            
+            // RAFRAÎCHIR IMMÉDIATEMENT L'AFFICHAGE
+            setTimeout(() => {
+                if (currentInvoice.productionId === productionId) {
+                    loadProductionForInvoice(productionId);
+                }
+            }, 1000);
+        }
         
     } catch (error) {
-        console.error('Erreur mise à jour stocks:', error);
-        throw error;
+        console.error("DEBUG: Erreur mise à jour:", error);
     }
 }
 
-// Fonction utilitaire pour obtenir la clé de vente
-function getSoldKeyForCategory(categoryId) {
-    const soldKeys = {
+function getSoldFieldForCategory(categoryId) {
+    const map = {
         '1': 'small1Sold',
-        '2': 'small2Sold',
+        '2': 'small2Sold', 
         '3': 'medium1Sold',
         '4': 'medium2Sold',
         '5': 'large1Sold',
@@ -944,9 +969,39 @@ function getSoldKeyForCategory(categoryId) {
         '7': 'xlarge1Sold',
         '8': 'xlarge2Sold'
     };
-    return soldKeys[categoryId] || 'small1Sold';
+    console.log("DEBUG: Mapping catégorie", categoryId, "→", map[categoryId]);
+    return map[categoryId];
 }
         
+  function refreshStockDisplay(productionId) {
+    if (!productionId) return;
+    
+    console.log("DEBUG: Rafraîchissement affichage pour", productionId);
+    
+    // 1. Supprimer l'ancien affichage
+    const oldStock = document.getElementById('stockInfo');
+    if (oldStock) oldStock.remove();
+    
+    // 2. Recharger les données
+    db.collection('poulailler_records').doc(productionId).get()
+        .then(doc => {
+            if (doc.exists) {
+                const production = doc.data();
+                console.log("DEBUG: Nouvelles données:", production);
+                
+                // 3. Réafficher
+                showAvailableStock(production);
+                
+                // 4. Mettre à jour currentInvoice
+                currentInvoice.productionData = production;
+                
+                showMessage('Stocks mis à jour', 'success');
+            }
+        })
+        .catch(error => {
+            console.error("DEBUG: Erreur rafraîchissement:", error);
+        });
+}
         // Générer un numéro de facture avec boutique
         function generateInvoiceNumber() {
             const now = new Date();
@@ -2229,9 +2284,16 @@ function loadProductionForInvoice(productionId) {
         });
 }
 
-// Ouvrir la page de facturation avec les données de production
+// Ouvrir la page  de facturation avec les données de production
 function openInvoicePageWithProduction(production, productionId) {
     // Stocker l'ID de production
+  const oldStockInfo = document.getElementById('stockInfo');
+    if (oldStockInfo) {
+        oldStockInfo.remove();
+    }
+    
+    // SUPPRIMER TOUTES LES AUTRES INFOS DE STOCK
+    document.querySelectorAll('[id^="stockInfo"]').forEach(el => el.remove());
     currentInvoice.productionId = productionId;
     currentInvoice.productionData = production;
     
@@ -2477,7 +2539,84 @@ const valeurEstimee = stockReel * prixMoyen;
     });
 }
 
- 
+async function updateSoldCounts(productionId, itemsSold) {
+    console.log("MISE À JOUR DÉBUT pour", productionId, itemsSold);
+    
+    if (!productionId) {
+        console.error("ERREUR: Pas d'ID production");
+        return;
+    }
+    
+    try {
+        const db = firebase.firestore();
+        const productionRef = db.collection('poulailler_records').doc(productionId);
+        
+        // LIRE D'ABORD les données actuelles
+        const doc = await productionRef.get();
+        
+        if (!doc.exists) {
+            console.error("ERREUR: Production non trouvée");
+            return;
+        }
+        
+        const currentData = doc.data();
+        console.log("Données actuelles:", currentData);
+        
+        // PRÉPARER LES MISES À JOUR
+        const updates = {};
+        
+        // Pour chaque item vendu
+        Object.values(itemsSold).forEach(item => {
+            console.log("Traitement item:", item);
+            
+            // Déterminer le champ à mettre à jour
+            let soldField = "";
+            if (item.id === '1') soldField = 'small1Sold';
+            else if (item.id === '2') soldField = 'small2Sold';
+            else if (item.id === '3') soldField = 'medium1Sold';
+            else if (item.id === '4') soldField = 'medium2Sold';
+            else if (item.id === '5') soldField = 'large1Sold';
+            else if (item.id === '6') soldField = 'large2Sold';
+            else if (item.id === '7') soldField = 'xlarge1Sold';
+            else if (item.id === '8') soldField = 'xlarge2Sold';
+            
+            if (soldField) {
+                const currentValue = currentData[soldField] || 0;
+                updates[soldField] = currentValue + item.quantity;
+                console.log(`${soldField}: ${currentValue} + ${item.quantity} = ${updates[soldField]}`);
+            }
+        });
+        
+        // Ajouter la date 
+        updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+        
+        console.log("Mises à jour à appliquer:", updates);
+        
+        // APPLIQUER LES MISES À JOUR
+        await productionRef.update(updates);
+        console.log("✅ MISES À JOUR APPLIQUÉES DANS FIREBASE");
+        
+        // Afficher un message
+        showMessage('Base de données mise à jour', 'success');
+        
+    } catch (error) {
+        console.error("❌ ERREUR CRITIQUE:", error);
+        showMessage('Erreur mise à jour base de données: ' + error.message, 'error');
+    }
+}
+// Fonction utilitaire
+function getSoldField(categoryId) {
+    if (categoryId === '1') return 'small1Sold';
+    if (categoryId === '2') return 'small2Sold';
+    if (categoryId === '3') return 'medium1Sold';
+    if (categoryId === '4') return 'medium2Sold';
+    if (categoryId === '5') return 'large1Sold';
+    if (categoryId === '6') return 'large2Sold';
+    if (categoryId === '7') return 'xlarge1Sold';
+    if (categoryId === '8') return 'xlarge2Sold';
+    return null;
+}
+// ============================================================== 
     </script>
    
 </body>
