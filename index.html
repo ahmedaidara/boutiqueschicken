@@ -688,12 +688,23 @@
         showBoutiqueStats();
     });
     
-    // Bouton retour (dans la page facturation)
+    // Bouton retour la page facturation)
     document.getElementById('backBtn').addEventListener('click', function() {
         document.getElementById('invoicePage').style.display = 'none';
         document.getElementById('mainInterface').style.display = 'block';
     });
     
+      // Bouton enregistrer facture (avec débogage)
+document.getElementById('saveBtn').addEventListener('click', async function() {
+    console.log("=== 🚀 DÉBUT ENREGISTREMENT ===");
+    
+    // Vérifier les données avant
+    await checkFirebaseData();
+    
+    // Lancer l'enregistrement
+    await saveInvoice();
+});
+      
     // Bouton enregistrer facture
     document.getElementById('saveBtn').addEventListener('click', saveInvoice);
     
@@ -950,60 +961,35 @@ async function saveInvoice() {
         console.log('✅ Facture créée:', invoiceRef.id);
         
         // ==================== 2. METTRE À JOUR LE STOCK SI DISPONIBLE ====================
-        if (currentInvoice.stockAttribueId && currentInvoice.productionId) {
-            try {
-                const stockRef = db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId);
-                
-                // Lire les données actuelles
-                const stockDoc = await stockRef.get();
-                if (stockDoc.exists) {
-                    const stock = stockDoc.data();
-                    console.log('Stock avant mise à jour:', stock);
-                    
-                    // Calculer les nouvelles valeurs
-                    const updates = {
-                        soldByCategory: { ...(stock.soldByCategory || {}) },
-                        totalSold: stock.totalSold || 0,
-                        remaining: stock.remaining || stock.total,
-                        lastSaleDate: new Date().toISOString(),
-                        lastInvoiceId: invoiceRef.id,
-                        lastInvoiceNumber: invoiceNumber,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    };
-                    
-                    // Ajouter les ventes de cette facture
-                    Object.values(selectedItems).forEach(item => {
-                        const catId = item.id.toString();
-                        updates.soldByCategory[catId] = (updates.soldByCategory[catId] || 0) + item.quantity;
-                        updates.totalSold += item.quantity;
-                    });
-                    
-                    // Calculer le nouveau reste
-                    updates.remaining = Math.max(0, (stock.total || 0) - updates.totalSold);
-                    
-                    // Mettre à jour le stock attribué
-                    await stockRef.update(updates);
-                    console.log('✅ Stock attribué mis à jour');
-                    
-                    // Si stock épuisé, marquer comme terminé
-                    if (updates.remaining === 0) {
-                        await stockRef.update({ status: 'completed' });
-                    }
-                }
-            } catch (stockError) {
-                console.warn('⚠️ Erreur mise à jour stock:', stockError);
-                // Continuer même si le stock ne peut pas être mis à jour
-            }
-        }
-        
-        // ==================== 3. METTRE À JOUR LA PRODUCTION GLOBALE ====================
-        if (currentInvoice.productionId) {
-            try {
-                await updateProductionStocks(currentInvoice.productionId, selectedItems);
-            } catch (prodError) {
-                console.warn('⚠️ Erreur mise à jour production:', prodError);
-            }
-        }
+       // ==================== 2. METTRE À JOUR LE STOCK ATTRIBUÉ ====================
+if (currentInvoice.stockAttribueId) {
+    try {
+        console.log("🔄 Mise à jour stock attribué...");
+        await updateAttributedStock(currentInvoice.stockAttribueId, selectedItems);
+        console.log("✅ Stock attribué mis à jour avec succès");
+    } catch (stockError) {
+        console.error("❌ Erreur stock attribué:", stockError);
+        showMessage('⚠️ Vente enregistrée mais erreur stock', 'warning');
+        // Continuer quand même
+    }
+} else {
+    console.warn("⚠️ Aucun stockAttribueId, skip mise à jour stock");
+}
+
+// ==================== 3. METTRE À JOUR LA PRODUCTION GLOBALE ====================
+if (currentInvoice.productionId) {
+    try {
+        console.log("🔄 Mise à jour production globale...");
+        await updateProductionStocks(currentInvoice.productionId, selectedItems);
+        console.log("✅ Production globale mise à jour");
+    } catch (prodError) {
+        console.error("❌ Erreur production:", prodError);
+        showMessage('⚠️ Vente enregistrée mais erreur production', 'warning');
+        // Continuer quand même
+    }
+} else {
+    console.warn("⚠️ Aucun productionId, skip mise à jour production");
+}
         
         // ==================== 4. SUCCÈS ====================
         showMessage('✅ Facture enregistrée avec succès !', 'success');
@@ -1015,7 +1001,10 @@ async function saveInvoice() {
         currentInvoice.client = invoiceData.client;
         currentInvoice.items = invoiceData.items;
         currentInvoice.date = new Date();
-        
+        // ==================== 6. RAFRAÎCHIR L'AFFICHAGE DU STOCK ====================
+setTimeout(() => {
+    refreshStockAfterSale();
+}, 500);
         // ==================== 5. GÉNÉRER LE PDF AUTOMATIQUEMENT ====================
         setTimeout(() => {
             generatePDF();
@@ -1037,62 +1026,184 @@ async function saveInvoice() {
     }
 }
 
-// Mettre à jour les stocks dans la production (SPÉCIFIQUE)
+  // Vérifier l'état des données Firebase
+async function checkFirebaseData() {
+    console.log("=== 🔍 VÉRIFICATION FIREBASE ===");
+    
+    if (!currentInvoice.productionId || !currentInvoice.stockAttribueId) {
+        console.log("❌ Données manquantes pour vérification");
+        return;
+    }
+    
+    try {
+        // Vérifier la production
+        const prodDoc = await db.collection('poulailler_records').doc(currentInvoice.productionId).get();
+        if (prodDoc.exists) {
+            console.log("📊 PRODUCTION actuelle:", prodDoc.data());
+        }
+        
+        // Vérifier le stock attribué
+        const stockDoc = await db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId).get();
+        if (stockDoc.exists) {
+            console.log("📊 STOCK ATTRIBUÉ actuel:", stockDoc.data());
+        }
+        
+    } catch (error) {
+        console.error("❌ Erreur vérification:", error);
+    }
+}
+  
+// Mettre à jour les stocks dans la production (VERSION CORRIGÉE)
 async function updateProductionStocks(productionId, itemsSold) {
-    console.log('Mise à jour production:', productionId, itemsSold);
+    console.log("🔥 MISE À JOUR PRODUCTION DÉBUT", productionId, itemsSold);
+    
+    if (!productionId) {
+        console.error("❌ ERREUR: Pas d'ID production");
+        return false;
+    }
     
     try {
         const productionRef = db.collection('poulailler_records').doc(productionId);
-        const productionDoc = await productionRef.get();
-       
-        if (!productionDoc.exists) {
-            console.error('Production non trouvée:', productionId);
-            return;
+        
+        // 1. LIRE les données actuelles
+        const doc = await productionRef.get();
+        
+        if (!doc.exists) {
+            console.error("❌ Production non trouvée:", productionId);
+            return false;
         }
-       
-        const production = productionDoc.data();
+        
+        const production = doc.data();
+        console.log("📊 Données actuelles production:", production);
+        
+        // 2. PRÉPARER les mises à jour
         const updates = {};
-       
-        // Mapping des IDs de catégorie vers les champs Firebase
-        const categoryFields = {
-            '1': 'small1Sold',
-            '2': 'small2Sold',
-            '3': 'medium1Sold',
-            '4': 'medium2Sold',
-            '5': 'large1Sold',
-            '6': 'large2Sold',
-            '7': 'xlarge1Sold',
-            '8': 'xlarge2Sold'
+        
+        // Mapping exact des catégories
+        const categoryMap = {
+            '1': { soldField: 'small1Sold', priceField: 'small1Price', qtyField: 'small1Quantity' },
+            '2': { soldField: 'small2Sold', priceField: 'small2Price', qtyField: 'small2Quantity' },
+            '3': { soldField: 'medium1Sold', priceField: 'medium1Price', qtyField: 'medium1Quantity' },
+            '4': { soldField: 'medium2Sold', priceField: 'medium2Price', qtyField: 'medium2Quantity' },
+            '5': { soldField: 'large1Sold', priceField: 'large1Price', qtyField: 'large1Quantity' },
+            '6': { soldField: 'large2Sold', priceField: 'large2Price', qtyField: 'large2Quantity' },
+            '7': { soldField: 'xlarge1Sold', priceField: 'xlarge1Price', qtyField: 'xlarge1Quantity' },
+            '8': { soldField: 'xlarge2Sold', priceField: 'xlarge2Price', qtyField: 'xlarge2Quantity' }
         };
-       
-        // Initialiser tous les champs à leur valeur actuelle
-        Object.values(categoryFields).forEach(field => {
-            updates[field] = production[field] || 0;
-        });
-       
-        // Ajouter les nouvelles ventes
+        
+        // Pour chaque item vendu
         Object.values(itemsSold).forEach(item => {
-            const soldField = categoryFields[item.id];
-            if (soldField) {
-                updates[soldField] += item.quantity;
-                console.log(`Production ${productionId}: ${soldField} += ${item.quantity}`);
+            const cat = categoryMap[item.id];
+            if (cat) {
+                const currentSold = production[cat.soldField] || 0;
+                updates[cat.soldField] = currentSold + item.quantity;
+                console.log(`➕ ${cat.soldField}: ${currentSold} + ${item.quantity} = ${updates[cat.soldField]}`);
             }
         });
-       
-        // Ajouter les métadonnées
-        updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+        
+        // Calculer le total vendu
+        const totalSold = Object.values(updates).reduce((sum, val) => sum + val, 0);
+        
+        // Mettre à jour les totaux
+        updates.totalSold = (production.totalSold || 0) + totalSold;
+        
+        // Calculer le stock restant
+        const initialStock = production.initialStock || 0;
+        const lost = production.lost || 0;
+        const given = production.given || 0;
+        const totalLostGiven = lost + given;
+        updates.remainingStock = Math.max(0, initialStock - updates.totalSold - totalLostGiven);
+        
+        // Métadonnées
         updates.lastSaleDate = new Date().toISOString();
-       
-        // Appliquer les mises à jour
+        updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+        
+        console.log("📝 Mises à jour à appliquer:", updates);
+        
+        // 3. APPLIQUER les mises à jour
         await productionRef.update(updates);
-        console.log('Production mise à jour avec succès');
-       
+        console.log("✅ PRODUCTION MISE À JOUR DANS FIREBASE");
+        
+        return true;
+        
     } catch (error) {
-        console.error('Erreur mise à jour production:', error);
-        throw error; // Propager l'erreur
+        console.error("💥 ERREUR CRITIQUE updateProductionStocks:", error);
+        throw error;
     }
 }
 
+  // Mettre à jour le stock attribué spécifique à la boutique
+async function updateAttributedStock(stockAttribueId, itemsSold) {
+    console.log("🔥 MISE À JOUR STOCK ATTRIBUÉ DÉBUT", stockAttribueId, itemsSold);
+    
+    if (!stockAttribueId) {
+        console.error("❌ ERREUR: Pas d'ID stock attribué");
+        return false;
+    }
+    
+    try {
+        const stockRef = db.collection('stocks_attribues').doc(stockAttribueId);
+        
+        // 1. LIRE les données actuelles
+        const doc = await stockRef.get();
+        
+        if (!doc.exists) {
+            console.error("❌ Stock attribué non trouvé:", stockAttribueId);
+            return false;
+        }
+        
+        const stock = doc.data();
+        console.log("📊 Données actuelles stock:", stock);
+        
+        // 2. PRÉPARER les mises à jour
+        const updates = {};
+        
+        // Initialiser soldByCategory s'il n'existe pas
+        updates.soldByCategory = { ...(stock.soldByCategory || {}) };
+        
+        let totalVenduCetteFacture = 0;
+        
+        // Pour chaque item vendu
+        Object.values(itemsSold).forEach(item => {
+            const catId = item.id.toString();
+            const currentSold = updates.soldByCategory[catId] || 0;
+            updates.soldByCategory[catId] = currentSold + item.quantity;
+            totalVenduCetteFacture += item.quantity;
+            
+            console.log(`🛒 Catégorie ${catId}: ${currentSold} + ${item.quantity} = ${updates.soldByCategory[catId]}`);
+        });
+        
+        // Calculer les totaux
+        updates.totalSold = (stock.totalSold || 0) + totalVenduCetteFacture;
+        
+        // Calculer le restant (total attribué - total vendu)
+        const totalAttribue = stock.total || 0;
+        updates.remaining = Math.max(0, totalAttribue - updates.totalSold);
+        
+        // Vérifier si épuisé
+        if (updates.remaining === 0) {
+            updates.status = 'completed';
+        }
+        
+        // Métadonnées
+        updates.lastSaleDate = new Date().toISOString();
+        updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+        
+        console.log("📝 Mises à jour stock:", updates);
+        console.log(`📈 Total vendu: ${updates.totalSold}, Restant: ${updates.remaining}`);
+        
+        // 3. APPLIQUER
+        await stockRef.update(updates);
+        console.log("✅ STOCK ATTRIBUÉ MIS À JOUR DANS FIREBASE");
+        
+        return true;
+        
+    } catch (error) {
+        console.error("💥 ERREUR CRITIQUE updateAttributedStock:", error);
+        throw error;
+    }
+}
+  
 function getSoldFieldForCategory(categoryId) {
     const map = {
         '1': 'small1Sold',
@@ -2798,14 +2909,19 @@ function loadStockForInvoice(stockId, productionId) {
 function openInvoicePageWithStock(stockAttribue, production, stockId, productionId) {
     console.log('Ouvrir facture avec:', { stockId, productionId, stockAttribue });
     
+    // ============ CORRECTION : SUPPRIMER LES ANCIENS PANELS ============
+    const oldStockPanels = document.querySelectorAll('#stockInfo');
+    oldStockPanels.forEach(panel => panel.remove());
+    // ==================================================================
+    
     // STOCKER CORRECTEMENT LES INFORMATIONS
     currentInvoice = {
         id: null,
         boutique: currentBoutique.id,
         boutiqueName: currentBoutique.name,
         boutiquePhone: currentBoutique.phone,
-        productionId: productionId, // IMPORTANT: utiliser le paramètre
-        stockAttribueId: stockId,   // IMPORTANT: utiliser le paramètre
+        productionId: productionId,
+        stockAttribueId: stockId,
         stockData: stockAttribue,
         productionData: production,
         client: {},
@@ -2813,8 +2929,6 @@ function openInvoicePageWithStock(stockAttribue, production, stockId, production
         total: 0,
         date: new Date()
     };
-    
-    console.log('currentInvoice après définition:', currentInvoice);
     
     // Afficher la page de facturation
     document.getElementById('mainInterface').style.display = 'none';
@@ -2873,10 +2987,14 @@ function showAttributedStock(stockAttribue, production) {
     
     // Dans showAttributedStock(), MODIFIEZ le calcul :
 
+// MODIFICATION : UTILISER LES DONNÉES MISE À JOUR
 categories.forEach(cat => {
     const attribue = stockAttribue.categories[cat.id] || 0;
-    // Maintenant on peut savoir combien CETTE boutique a vendu
-    const venduParCetteBoutique = stockAttribue.soldByCategory?.[cat.id] || 0;
+    
+    // CORRECTION : SI soldByCategory n'existe pas, l'initialiser
+    const soldByCategory = stockAttribue.soldByCategory || {};
+    const venduParCetteBoutique = soldByCategory[cat.id] || 0;
+    
     const restantPourCetteBoutique = Math.max(0, attribue - venduParCetteBoutique);
     
     totalAttribue += attribue;
@@ -2915,19 +3033,37 @@ categories.forEach(cat => {
     stockHTML += `</div>`;
     
     // Résumé
-    stockHTML += `
-        <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 8px; border: 1px solid ${currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981'}; display: flex; justify-content: space-between; align-items: center;">
-            <div style="font-weight: bold; color: #333;">
-                <i class="fas fa-chart-bar"></i> RÉSUMÉ DU STOCK ATTRIBUÉ
+   // ============ CORRECTION : CALCUL EXACT ============
+// Recalculer totalAttribue et totalRestant pour être sûr
+let totalAttribueCalc = 0;
+let totalRestantCalc = 0;
+
+categories.forEach(cat => {
+    const attribue = stockAttribue.categories[cat.id] || 0;
+    const soldByCategory = stockAttribue.soldByCategory || {};
+    const vendu = soldByCategory[cat.id] || 0;
+    
+    totalAttribueCalc += attribue;
+    totalRestantCalc += Math.max(0, attribue - vendu);
+});
+
+// Résumé CORRIGÉ
+stockHTML += `
+    <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 8px; border: 1px solid ${currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981'}; display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-weight: bold; color: #333;">
+            <i class="fas fa-chart-bar"></i> RÉSUMÉ DU STOCK ATTRIBUÉ
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 0.9rem; color: #666;">Total attribué : ${totalAttribueCalc}</div>
+            <div style="font-size: 1.2rem; font-weight: bold; color: ${totalRestantCalc > 0 ? (currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981') : '#ef4444'};">
+                ${totalRestantCalc} disponibles
             </div>
-            <div style="text-align: right;">
-                <div style="font-size: 0.9rem; color: #666;">Total attribué : ${totalAttribue}</div>
-                <div style="font-size: 1.2rem; font-weight: bold; color: ${currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981'};">
-                    ${totalRestant} disponibles
-                </div>
+            <div style="font-size: 0.8rem; color: #666;">
+                (Déjà vendus : ${totalAttribueCalc - totalRestantCalc})
             </div>
         </div>
-    `;
+    </div>
+`;
     
     // Avertissement si stock épuisé
     if (totalRestant <= 0) {
@@ -3343,9 +3479,53 @@ function getSoldField(categoryId) {
     if (categoryId === '8') return 'xlarge2Sold';
     return null;
 }
+  
+  // FONCTION POUR RAFRAÎCHIR LE STOCK APRÈS UNE VENTE
+function refreshStockAfterSale() {
+    console.log("Rafraîchissement du stock après vente...");
+    
+    if (!currentInvoice.stockAttribueId || !currentInvoice.productionId) {
+        console.log("Pas de stock à rafraîchir");
+        return;
+    }
+    
+    // 1. Recharger le stock attribué depuis Firebase
+    db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId).get()
+        .then(stockDoc => {
+            if (!stockDoc.exists) return;
+            
+            const updatedStock = stockDoc.data();
+            
+            // 2. Recharger la production
+            db.collection('poulailler_records').doc(currentInvoice.productionId).get()
+                .then(productionDoc => {
+                    if (!productionDoc.exists) return;
+                    
+                    const updatedProduction = productionDoc.data();
+                    
+                    // 3. Supprimer l'ancien affichage
+                    const oldStockInfo = document.getElementById('stockInfo');
+                    if (oldStockInfo) oldStockInfo.remove();
+                    
+                    // 4. Réafficher avec les nouvelles données 
+                    showAttributedStock(updatedStock, updatedProduction);
+                    
+                    // 5. Mettre à jour les données en mémoire
+                    currentInvoice.stockData = updatedStock;
+                    currentInvoice.productionData = updatedProduction;
+                    
+                    console.log("✅ Stock rafraîchi après vente");
+                    
+                }).catch(error => {
+                    console.error("Erreur rechargement production:", error);
+                });
+            
+        }).catch(error => {
+            console.error("Erreur rechargement stock:", error);
+        });
+}
 // ============================================================== 
     </script>
    
 </body>
 </html>
-
