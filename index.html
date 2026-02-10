@@ -401,10 +401,10 @@
         <div class="header">
             <div>
                 <h2>DAKAR CHICKEN EXPRESS</h2>
-                <p style="color: #666;">Module de facturation - Gérante</p>
+                <p style="color: #666;">Facturation</p>
             </div>
             <div style="color: #667eea; font-weight: bold;">
-                <i class="fas fa-user"></i> Mode Gérante
+                <i class="fas fa-user"></i> Vente
             </div>
         </div>
         
@@ -412,7 +412,7 @@
            <button id="selectProductionBtn" class="action-btn">
     <i class="fas fa-clipboard-list"></i>
     <span style="font-size: 1.2rem; font-weight: bold;">Nouvelle Facture</span>
-    <small>Sélectionner d'abord une production</small>
+    <small>Sélectionner une production</small>
 </button>
             
             <button id="historyBtn" class="action-btn">
@@ -2560,10 +2560,10 @@ function selectProductionForInvoice() {
                     
                     <div style="margin-bottom: 15px; background: #f0f9ff; padding: 10px; border-radius: 8px; border-left: 4px solid #3b82f6;">
                         <div style="font-weight: bold; color: #0369a1; margin-bottom: 5px;">
-                            <i class="fas fa-info-circle"></i> CALCUL RÉEL
+                            <i class="fas fa-info-circle"></i> Info
                         </div>
                         <div style="font-size: 0.9rem; color: #666;">
-                            Basé sur l'historique complet des ventes. ${stocksAvecStock} stock(s) encore disponible(s).
+                             ${stocksAvecStock} stock(s) encore disponible(s).
                         </div>
                     </div>
                     
@@ -3058,12 +3058,10 @@ async function showAttributedStock(stockAttribue, production) {
                 <h4 style="margin: 0; color: ${currentBoutique.id === 'sacre-coeur' ? '#0369a1' : '#059669'};">
                     <i class="fas fa-boxes-stacked"></i> Stock Attribué - ${currentBoutique.name}
                 </h4>
-                <p style="margin: 5px 0 0 0; color: #666; font-size: 0.9rem;">
-                    <i class="fas fa-history"></i> Calculé depuis l'historique des ventes
-                </p>
+               
             </div>
             <div style="background: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; color: #0369a1;">
-                <i class="fas fa-calculator"></i> Ventes réelles
+                <i class="fas fa-calculator"></i> Ventes 
             </div>
         </div>
         
@@ -3105,12 +3103,12 @@ async function showAttributedStock(stockAttribue, production) {
                     </div>
                     
                     <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 3px;">
-                        <span style="color: #666;">Attribué :</span>
+                        <span style="color: #666;">Attribué </span>
                         <span style="font-weight: bold; color: #3b82f6;">${attribue}</span>
                     </div>
                     
                     <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 3px;">
-                        <span style="color: #666;">Vendu (réel) :</span>
+                        <span style="color: #666;">Vendu </span>
                         <span style="color: #8b5cf6; font-weight: bold;">${venduReel}</span>
                     </div>
                     
@@ -3139,11 +3137,11 @@ async function showAttributedStock(stockAttribue, production) {
     stockHTML += `
         <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 8px; border: 1px solid ${currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981'}; display: flex; justify-content: space-between; align-items: center;">
             <div style="font-weight: bold; color: #333;">
-                <i class="fas fa-chart-bar"></i> RÉSUMÉ RÉEL (depuis historique)
+                <i class="fas fa-chart-bar"></i> RÉSUMÉ 
             </div>
             <div style="text-align: right;">
                 <div style="font-size: 0.9rem; color: #666;">Total attribué : ${totalAttribue}</div>
-                <div style="font-size: 0.9rem; color: #8b5cf6;">Total vendu réel : ${totalVenduReel}</div>
+                <div style="font-size: 0.9rem; color: #8b5cf6;">Total vendu : ${totalVenduReel}</div>
                 <div style="font-size: 1.2rem; font-weight: bold; color: ${totalRestant > 0 ? (currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981') : '#ef4444'};">
                     ${totalRestant >= 0 ? 'Reste : ' : 'Déficit : '}${totalRestant}
                 </div>
@@ -3181,7 +3179,7 @@ async function showAttributedStock(stockAttribue, production) {
         }
     });
     
-    console.log("✅ Affichage mis à jour avec données réelles");
+    console.log("✅ Affichage mis à jour avec données");
 }
   
   // Forcer la synchronisation manuelle
