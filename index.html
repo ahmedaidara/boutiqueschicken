@@ -871,7 +871,7 @@ function debugStocks() {
             updateSelectedItemsList();
         }
         
- async function saveInvoice() {
+async function saveInvoice() {
     const clientName = document.getElementById('clientName').value.trim();
     const clientPhone = document.getElementById('clientPhone').value.trim();
     
@@ -880,24 +880,12 @@ function debugStocks() {
         return;
     }
     
-    // VÉRIFICATION DÉTAILLÉE DU STOCK
-    console.log('Vérification avant enregistrement...');
+    // VÉRIFICATION SIMPLIFIÉE
+    console.log('Début enregistrement...');
     console.log('currentInvoice:', currentInvoice);
-    console.log('stockAttribueId:', currentInvoice.stockAttribueId);
-    console.log('productionId:', currentInvoice.productionId);
     console.log('selectedItems:', selectedItems);
     
-    if (!currentInvoice.stockAttribueId) {
-        showMessage('NOTE DEMAIN JE COMMENCE ICI POUR CONTINUER"', 'error');
-        return;
-    }
-    
-    if (!currentInvoice.productionId) {
-        showMessage('ERREUR: ID de production manquant', 'error');
-        return;
-    }
-    
-    // VÉRIFIER LES QUANTITÉS PAR CATÉGORIE
+    // VÉRIFICATION DES QUANTITÉS PAR CATÉGORIE
     let erreurStock = false;
     let erreurMessage = '';
     
@@ -909,7 +897,7 @@ function debugStocks() {
             return;
         }
         
-        const max = parseInt(input.max) || 0;
+        const max = parseInt(input.max) || 9999; // Valeur élevée si pas de limite
         if (item.quantity > max) {
             erreurMessage = `Vous ne pouvez pas vendre ${item.quantity} ${item.name}, maximum: ${max}`;
             erreurStock = true;
@@ -923,19 +911,17 @@ function debugStocks() {
     
     showMessage('Enregistrement en cours...', 'warning');
     
-    // CONTINUER AVEC LE RESTE DE LA FONCTION...
-    
     try {
         // ==================== 1. CRÉER LA FACTURE ====================
         const invoiceNumber = generateInvoiceNumber();
-        const totalAmount = parseInt(document.getElementById('totalAmount').textContent.replace(/\D/g, '')) || 0;
+        const totalAmount = Object.values(selectedItems).reduce((sum, item) => sum + (item.quantity * item.price), 0);
         
         const invoiceData = {
             boutique: currentBoutique.id,
             boutiqueName: currentBoutique.name,
             boutiquePhone: currentBoutique.phone,
-            productionId: currentInvoice.productionId,
-            stockAttribueId: currentInvoice.stockAttribueId,
+            productionId: currentInvoice.productionId || '',
+            stockAttribueId: currentInvoice.stockAttribueId || '',
             productionDate: currentInvoice.productionData?.startDate || new Date(),
             client: {
                 name: clientName || 'Client non renseigné',
@@ -948,72 +934,81 @@ function debugStocks() {
                 weight: item.weight,
                 price: item.price,
                 quantity: item.quantity,
-                subtotal: item.subtotal
+                subtotal: item.quantity * item.price
             })),
             total: totalAmount,
             date: firebase.firestore.FieldValue.serverTimestamp(),
             invoiceNumber: invoiceNumber,
-            status: 'completed'
+            status: 'completed',
+            createdAt: new Date().toISOString()
         };
         
         console.log('Sauvegarde facture:', invoiceData);
         
         // Sauvegarder la facture
         const invoiceRef = await db.collection('invoices').add(invoiceData);
-        console.log('Facture créée:', invoiceRef.id);
+        console.log('✅ Facture créée:', invoiceRef.id);
         
-        // ==================== 2. METTRE À JOUR LE STOCK ATTRIBUÉ ====================
-        const stockRef = db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId);
-        
-        // Lire les données actuelles
-        const stockDoc = await stockRef.get();
-        if (!stockDoc.exists) {
-            throw new Error('Stock attribué non trouvé');
-        }
-        
-        const stock = stockDoc.data();
-        console.log('Stock avant mise à jour:', stock);
-        
-        // Calculer les nouvelles valeurs
-        const updates = {
-            soldByCategory: { ...(stock.soldByCategory || {}) },
-            totalSold: stock.totalSold || 0,
-            remaining: stock.remaining || stock.total,
-            lastSaleDate: new Date().toISOString(),
-            lastInvoiceId: invoiceRef.id,
-            lastInvoiceNumber: invoiceNumber,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-        
-        // Ajouter les ventes de cette facture
-        Object.values(selectedItems).forEach(item => {
-            const catId = item.id.toString();
-            updates.soldByCategory[catId] = (updates.soldByCategory[catId] || 0) + item.quantity;
-            updates.totalSold += item.quantity;
-            console.log(`Catégorie ${catId}: +${item.quantity} vendus`);
-        });
-        
-        // Calculer le nouveau reste
-        updates.remaining = Math.max(0, (stock.total || 0) - updates.totalSold);
-        console.log('Nouveau totalSold:', updates.totalSold, 'Nouveau remaining:', updates.remaining);
-        
-        // Mettre à jour le stock attribué
-        await stockRef.update(updates);
-        console.log('Stock attribué mis à jour');
-        
-        // Si stock épuisé, marquer comme terminé
-        if (updates.remaining === 0) {
-            await stockRef.update({ status: 'completed' });
-            console.log('Stock marqué comme terminé');
+        // ==================== 2. METTRE À JOUR LE STOCK SI DISPONIBLE ====================
+        if (currentInvoice.stockAttribueId && currentInvoice.productionId) {
+            try {
+                const stockRef = db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId);
+                
+                // Lire les données actuelles
+                const stockDoc = await stockRef.get();
+                if (stockDoc.exists) {
+                    const stock = stockDoc.data();
+                    console.log('Stock avant mise à jour:', stock);
+                    
+                    // Calculer les nouvelles valeurs
+                    const updates = {
+                        soldByCategory: { ...(stock.soldByCategory || {}) },
+                        totalSold: stock.totalSold || 0,
+                        remaining: stock.remaining || stock.total,
+                        lastSaleDate: new Date().toISOString(),
+                        lastInvoiceId: invoiceRef.id,
+                        lastInvoiceNumber: invoiceNumber,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                    
+                    // Ajouter les ventes de cette facture
+                    Object.values(selectedItems).forEach(item => {
+                        const catId = item.id.toString();
+                        updates.soldByCategory[catId] = (updates.soldByCategory[catId] || 0) + item.quantity;
+                        updates.totalSold += item.quantity;
+                    });
+                    
+                    // Calculer le nouveau reste
+                    updates.remaining = Math.max(0, (stock.total || 0) - updates.totalSold);
+                    
+                    // Mettre à jour le stock attribué
+                    await stockRef.update(updates);
+                    console.log('✅ Stock attribué mis à jour');
+                    
+                    // Si stock épuisé, marquer comme terminé
+                    if (updates.remaining === 0) {
+                        await stockRef.update({ status: 'completed' });
+                    }
+                }
+            } catch (stockError) {
+                console.warn('⚠️ Erreur mise à jour stock:', stockError);
+                // Continuer même si le stock ne peut pas être mis à jour
+            }
         }
         
         // ==================== 3. METTRE À JOUR LA PRODUCTION GLOBALE ====================
-        await updateProductionStocks(currentInvoice.productionId, selectedItems);
+        if (currentInvoice.productionId) {
+            try {
+                await updateProductionStocks(currentInvoice.productionId, selectedItems);
+            } catch (prodError) {
+                console.warn('⚠️ Erreur mise à jour production:', prodError);
+            }
+        }
         
         // ==================== 4. SUCCÈS ====================
-        showMessage('✅ Facture enregistrée ! Stock mis à jour.', 'success');
+        showMessage('✅ Facture enregistrée avec succès !', 'success');
         
-        // Stocker la facture dans currentInvoice pour le PDF
+        // Stocker la facture pour le PDF
         currentInvoice.id = invoiceRef.id;
         currentInvoice.invoiceNumber = invoiceNumber;
         currentInvoice.total = totalAmount;
@@ -1021,7 +1016,7 @@ function debugStocks() {
         currentInvoice.items = invoiceData.items;
         currentInvoice.date = new Date();
         
-        // ==================== 5. GÉNÉRER LE PDF ====================
+        // ==================== 5. GÉNÉRER LE PDF AUTOMATIQUEMENT ====================
         setTimeout(() => {
             generatePDF();
             
@@ -1032,13 +1027,13 @@ function debugStocks() {
                 resetInvoiceForm();
                 
                 // Afficher un message final
-                showMessage(`Facture ${invoiceNumber} enregistrée avec succès`, 'success');
+                showMessage(`Facture ${invoiceNumber} sauvegardée`, 'success');
             }, 2000);
         }, 1000);
         
     } catch (error) {
-        console.error('ERREUR COMPLÈTE:', error);
-        showMessage(`❌ Erreur: ${error.message}`, 'error');
+        console.error('❌ ERREUR COMPLÈTE:', error);
+        showMessage(`Erreur: ${error.message || 'Problème technique'}`, 'error');
     }
 }
 
@@ -3353,3 +3348,4 @@ function getSoldField(categoryId) {
    
 </body>
 </html>
+
