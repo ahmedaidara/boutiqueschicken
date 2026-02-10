@@ -542,6 +542,46 @@
             total: 0,
             date: new Date()
         };
+  
+  // Fonction pour calculer les ventes réelles depuis l'historique
+async function calculateActualSales(stockAttribueId) {
+    console.log("📊 Calcul des ventes réelles pour stock:", stockAttribueId);
+    
+    const ventesParCategorie = {
+        '1': 0, '2': 0, '3': 0, '4': 0,
+        '5': 0, '6': 0, '7': 0, '8': 0
+    };
+    
+    try {
+        // Charger TOUTES les factures pour CETTE boutique
+        const snapshot = await db.collection('invoices')
+            .where('boutique', '==', currentBoutique.id)
+            .where('stockAttribueId', '==', stockAttribueId)
+            .get();
+        
+        console.log(`📈 ${snapshot.size} factures trouvées pour ce stock`);
+        
+        snapshot.forEach(doc => {
+            const facture = doc.data();
+            
+            if (facture.items && Array.isArray(facture.items)) {
+                facture.items.forEach(item => {
+                    const catId = item.id.toString();
+                    if (ventesParCategorie.hasOwnProperty(catId)) {
+                        ventesParCategorie[catId] += item.quantity || 0;
+                    }
+                });
+            }
+        });
+        
+        console.log("📦 Ventes calculées:", ventesParCategorie);
+        return ventesParCategorie;
+        
+    } catch (error) {
+        console.error("❌ Erreur calcul ventes:", error);
+        return ventesParCategorie;
+    }
+}
         // ==================== SYSTÈME DE SYNCHRONISATION INTELLIGENT ====================
 async function syncStockWithSales(stockAttribueId, boutiqueId) {
     console.log("🔄 Synchronisation des ventes pour stock:", stockAttribueId);
@@ -935,33 +975,46 @@ function debugStocks() {
         }
         
         // Réinitialiser le formulaire de facture
-        function resetInvoiceForm() {
-            // Réinitialiser les inputs client
-            document.getElementById('clientName').value = '';
-            document.getElementById('clientPhone').value = '';
-            document.getElementById('clientAddress').value = '';
-            
-            // Réinitialiser les quantités
-            document.querySelectorAll('.category-input').forEach(input => {
-                input.value = 0;
-            });
-            
-            // Réinitialiser les variables
-            selectedItems = {};
-            currentInvoice = {
-                id: null,
-                boutique: currentBoutique.id,
-                boutiqueName: currentBoutique.name,
-                client: {},
-                items: [],
-                total: 0,
-                date: new Date()
-            };
-            
-            // Réinitialiser l'affichage
-            document.getElementById('totalAmount').textContent = '0 F CFA';
-            updateSelectedItemsList();
-        }
+  // Réinitialiser le formulaire de facture
+function resetInvoiceForm() {
+    console.log("🔄 Réinitialisation formulaire");
+    
+    // Réinitialiser les inputs client
+    document.getElementById('clientName').value = '';
+    document.getElementById('clientPhone').value = '';
+    document.getElementById('clientAddress').value = '';
+    
+    // Réinitialiser les quantités
+    document.querySelectorAll('.category-input').forEach(input => {
+        input.value = 0;
+    });
+    
+    // Réinitialiser les variables MAIS GARDER le stockId et productionId
+    selectedItems = {};
+    
+    // NE PAS réinitialiser stockAttribueId et productionId
+    // Ils doivent rester pour l'enregistrement
+    currentInvoice = {
+        id: null,
+        boutique: currentBoutique.id,
+        boutiqueName: currentBoutique.name,
+        boutiquePhone: currentBoutique.phone,
+        productionId: currentInvoice.productionId || '', // Garder si existe
+        stockAttribueId: currentInvoice.stockAttribueId || '', // Garder si existe
+        productionData: currentInvoice.productionData || null,
+        stockData: currentInvoice.stockData || null,
+        client: {},
+        items: [],
+        total: 0,
+        date: new Date()
+    };
+    
+    console.log("currentInvoice après reset:", currentInvoice);
+    
+    // Réinitialiser l'affichage
+    document.getElementById('totalAmount').textContent = '0 F CFA';
+    updateSelectedItemsList();
+}
         
 async function saveInvoice() {
     const clientName = document.getElementById('clientName').value.trim();
@@ -1004,102 +1057,60 @@ async function saveInvoice() {
     showMessage('Enregistrement en cours...', 'warning');
     
     try {
-        // ==================== 1. CRÉER LA FACTURE ====================
-        const invoiceNumber = generateInvoiceNumber();
-        const totalAmount = Object.values(selectedItems).reduce((sum, item) => sum + (item.quantity * item.price), 0);
-        
-        const invoiceData = {
-            boutique: currentBoutique.id,
-            boutiqueName: currentBoutique.name,
-            boutiquePhone: currentBoutique.phone,
-            productionId: currentInvoice.productionId || '',
-            stockAttribueId: currentInvoice.stockAttribueId || '',
-            productionDate: currentInvoice.productionData?.startDate || new Date(),
-            client: {
-                name: clientName || 'Client non renseigné',
-                phone: clientPhone || 'Non renseigné',
-                address: document.getElementById('clientAddress').value.trim() || 'Non renseigné'
-            },
-            items: Object.values(selectedItems).map(item => ({
-                id: item.id,
-                name: item.name,
-                weight: item.weight,
-                price: item.price,
-                quantity: item.quantity,
-                subtotal: item.quantity * item.price
-            })),
-            total: totalAmount,
-            date: firebase.firestore.FieldValue.serverTimestamp(),
-            invoiceNumber: invoiceNumber,
-            status: 'completed',
-            createdAt: new Date().toISOString()
-        };
-        
-        console.log('Sauvegarde facture:', invoiceData);
-        
-        // Sauvegarder la facture
-        const invoiceRef = await db.collection('invoices').add(invoiceData);
-        console.log('✅ Facture créée:', invoiceRef.id);
-        
-        // ==================== 2. METTRE À JOUR LE STOCK SI DISPONIBLE ====================
-       // ==================== 2. METTRE À JOUR LE STOCK ATTRIBUÉ ====================
-if (currentInvoice.stockAttribueId) {
-    try {
-        console.log("🔄 Mise à jour stock attribué...");
-        await updateAttributedStock(currentInvoice.stockAttribueId, selectedItems);
-        console.log("✅ Stock attribué mis à jour avec succès");
-    } catch (stockError) {
-        console.error("❌ Erreur stock attribué:", stockError);
-        showMessage('⚠️ Vente enregistrée mais erreur stock', 'warning');
-        // Continuer quand même
-    }
-} else {
-    console.warn("⚠️ Aucun stockAttribueId, skip mise à jour stock");
-}
+      // ==================== ENREGISTRER LA FACTURE SEULEMENT ====================
+const invoiceNumber = generateInvoiceNumber();
+const totalAmount = Object.values(selectedItems).reduce((sum, item) => sum + (item.quantity * item.price), 0);
 
-// ==================== 3. METTRE À JOUR LA PRODUCTION GLOBALE ====================
-if (currentInvoice.productionId) {
-    try {
-        console.log("🔄 Mise à jour production globale...");
-        await updateProductionStocks(currentInvoice.productionId, selectedItems);
-        console.log("✅ Production globale mise à jour");
-    } catch (prodError) {
-        console.error("❌ Erreur production:", prodError);
-        showMessage('⚠️ Vente enregistrée mais erreur production', 'warning');
-        // Continuer quand même
+const invoiceData = {
+    boutique: currentBoutique.id,
+    boutiqueName: currentBoutique.name,
+    boutiquePhone: currentBoutique.phone,
+    productionId: currentInvoice.productionId || '',
+    stockAttribueId: currentInvoice.stockAttribueId,
+    client: {
+        name: clientName || 'Client non renseigné',
+        phone: clientPhone || 'Non renseigné',
+        address: document.getElementById('clientAddress').value.trim() || 'Non renseigné'
+    },
+    items: Object.values(selectedItems).map(item => ({
+        id: item.id.toString(),
+        name: item.name,
+        weight: item.weight,
+        price: item.price,
+        quantity: item.quantity,
+        subtotal: item.quantity * item.price
+    })),
+    total: totalAmount,
+    date: firebase.firestore.FieldValue.serverTimestamp(),
+    invoiceNumber: invoiceNumber,
+    status: 'completed',
+    createdAt: new Date().toISOString()
+};
+
+console.log("💾 Enregistrement facture seulement");
+const invoiceRef = await db.collection('invoices').add(invoiceData);
+console.log("✅ Facture enregistrée ID:", invoiceRef.id);
+
+// NE PAS METTRE À JOUR LE STOCK ICI - on calcule depuis l'historique
+showMessage('✅ Facture enregistrée !', 'success');
+
+// Rafraîchir l'affichage avec les nouvelles données
+setTimeout(async () => {
+    // Recharger les données et recalculer
+    const stockDoc = await db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId).get();
+    if (stockDoc.exists) {
+        const old = document.getElementById('stockInfo');
+        if (old) old.remove();
+        
+        const prodDoc = await db.collection('poulailler_records').doc(currentInvoice.productionId).get();
+        const prodData = prodDoc.exists ? prodDoc.data() : null;
+        
+        await showAttributedStock(stockDoc.data(), prodData);
     }
-} else {
-    console.warn("⚠️ Aucun productionId, skip mise à jour production");
-}
-        
-        // ==================== 4. SUCCÈS ====================
-        showMessage('✅ Facture enregistrée avec succès !', 'success');
-        
-        // Stocker la facture pour le PDF
-        currentInvoice.id = invoiceRef.id;
-        currentInvoice.invoiceNumber = invoiceNumber;
-        currentInvoice.total = totalAmount;
-        currentInvoice.client = invoiceData.client;
-        currentInvoice.items = invoiceData.items;
-        currentInvoice.date = new Date();
-        // ==================== 6. RAFRAÎCHIR L'AFFICHAGE DU STOCK ====================
-setTimeout(() => {
-    refreshStockAfterSale();
-}, 500);
-        // ==================== 5. GÉNÉRER LE PDF AUTOMATIQUEMENT ====================
-        setTimeout(() => {
-            generatePDF();
-            
-            // Revenir à l'accueil après 2 secondes
-            setTimeout(() => {
-                document.getElementById('invoicePage').style.display = 'none';
-                document.getElementById('mainInterface').style.display = 'block';
-                resetInvoiceForm();
-                
-                // Afficher un message final
-                showMessage(`Facture ${invoiceNumber} sauvegardée`, 'success');
-            }, 2000);
-        }, 1000);
+    
+    // Générer PDF
+    generatePDF();
+}, 1000);
         
     } catch (error) {
         console.error('❌ ERREUR COMPLÈTE:', error);
@@ -2399,22 +2410,101 @@ function selectProductionForInvoice() {
         return;
     }
     
-  console.log("=== DÉBOGAGE ===");
-    debugStocks(); // AJOUTEZ CETTE LIGNE
-  
-    showMessage('Chargement de vos stocks...', 'warning');
+    showMessage('Calcul des stocks réels...', 'warning');
     
-    // Charger UNIQUEMENT les stocks attribués à CETTE boutique
-       db.collection('stocks_attribues')
+    // Charger les stocks attribués
+    db.collection('stocks_attribues')
         .where('boutique', '==', currentBoutique.id)
-        .get()  // ENLEVEZ le where('status', '==', 'active') temporairement
-        .then(snapshot => {
-            console.log("Résultats de la requête:", snapshot.size);
+        .get()
+        .then(async snapshot => {
+            console.log("📦 Stocks trouvés:", snapshot.size);
             
             if (snapshot.empty) {
                 showNoStockModal();
                 return;
             }
+            
+            // Pour chaque stock, calculer les ventes réelles
+            const stockPromises = [];
+            
+            snapshot.forEach(doc => {
+                const stockAttribue = doc.data();
+                
+                if (stockAttribue.boutique !== currentBoutique.id) return;
+                
+                const promise = (async () => {
+                    // CALCULER LES VENTES RÉELLES pour ce stock
+                    const ventesReelles = await calculateActualSales(doc.id);
+                    
+                    // Charger la production
+                    const productionDoc = await db.collection('poulailler_records').doc(stockAttribue.productionId).get();
+                    if (!productionDoc.exists) return null;
+                    
+                    const production = productionDoc.data();
+                    const date = new Date(production.startDate);
+                    const dateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth()+1).padStart(2, '0')}/${date.getFullYear()}`;
+                    
+                    // Calculer les totaux RÉELS
+                    let totalAttribue = 0;
+                    let totalVenduReel = 0;
+                    
+                    // Les 8 catégories
+                    const categories = ['1','2','3','4','5','6','7','8'];
+                    categories.forEach(catId => {
+                        const attribue = stockAttribue.categories?.[catId] || 0;
+                        const vendu = ventesReelles[catId] || 0;
+                        totalAttribue += attribue;
+                        totalVenduReel += vendu;
+                    });
+                    
+                    const totalRestantReel = totalAttribue - totalVenduReel;
+                    
+                    return {
+                        html: `
+                            <div class="stock-card" data-stock-id="${doc.id}" data-production-id="${stockAttribue.productionId}"
+                                 style="background: white; border: 2px solid ${currentBoutique.id === 'sacre-coeur' ? '#3B82F6' : '#10B981'}; border-radius: 10px; padding: 15px; margin-bottom: 10px; cursor: pointer;">
+                                <div style="display: flex; justify-content: space-between; align-items: start;">
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: bold; color: #333;">Production du ${dateStr}</div>
+                                        <div style="margin-top: 8px;">
+                                            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 3px;">
+                                                <span style="color: #666;">Total attribué:</span>
+                                                <span style="font-weight: bold; color: #3b82f6;">${totalAttribue}</span>
+                                            </div>
+                                            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 3px;">
+                                                <span style="color: #666;">Vendu réel:</span>
+                                                <span style="color: #8b5cf6; font-weight: bold;">${totalVenduReel}</span>
+                                            </div>
+                                            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-top: 5px; padding-top: 5px; border-top: 1px solid #e0e0e0;">
+                                                <span style="color: #666;">RESTE DISPONIBLE:</span>
+                                                <span style="font-weight: bold; color: ${totalRestantReel > 0 ? '#10b981' : '#ef4444'};">
+                                                    ${totalRestantReel}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="text-align: right; margin-left: 10px;">
+                                        <div style="background: ${currentBoutique.id === 'sacre-coeur' ? '#f0f9ff' : '#f0fff4'}; 
+                                             color: ${currentBoutique.id === 'sacre-coeur' ? '#0369a1' : '#059669'}; 
+                                             padding: 5px 10px; border-radius: 5px; font-size: 0.9rem; font-weight: bold;">
+                                            VOTRE STOCK
+                                        </div>
+                                        ${totalRestantReel <= 0 ? 
+                                            `<div style="margin-top: 5px; background: #fee2e2; color: #dc2626; padding: 3px 8px; border-radius: 3px; font-size: 0.8rem;">
+                                                ÉPUISÉ
+                                            </div>` 
+                                            : ''
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        `,
+                        restant: totalRestantReel
+                    };
+                })();
+                
+                stockPromises.push(promise);
+            });
             
             // Créer la modal
             const modal = document.createElement('div');
@@ -2433,181 +2523,77 @@ function selectProductionForInvoice() {
                 padding: 20px;
             `;
             
-            let stocksHTML = '';
-            const stockPromises = [];
+            // Attendre tous les calculs
+            const results = await Promise.all(stockPromises);
             
-            snapshot.forEach(doc => {
-                const stockAttribue = doc.data();
-                
-                // VÉRIFIER : Ce stock est-il pour CETTE boutique ?
-                if (stockAttribue.boutique !== currentBoutique.id) {
-                    return; // Ignorer les stocks d'autres boutiques
+            let stocksHTML = '';
+            let stocksAvecStock = 0;
+            
+            results.forEach(result => {
+                if (result) {
+                    stocksHTML += result.html;
+                    if (result.restant > 0) stocksAvecStock++;
                 }
-                
-                // Charger les détails de la production
-                const promise = db.collection('poulailler_records').doc(stockAttribue.productionId).get()
-                    .then(productionDoc => {
-                        if (!productionDoc.exists) return null;
-                        
-                        const production = productionDoc.data();
-                        const date = new Date(production.startDate);
-                        const dateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth()+1).padStart(2, '0')}/${date.getFullYear()}`;
-                        
-                        // Les 8 catégories
-                        const categories = [
-                            { id: '1', name: 'Très petits', qtyField: 'small1Quantity', soldField: 'small1Sold' },
-                            { id: '2', name: 'Petits', qtyField: 'small2Quantity', soldField: 'small2Sold' },
-                            { id: '3', name: 'Moyens-petits', qtyField: 'medium1Quantity', soldField: 'medium1Sold' },
-                            { id: '4', name: 'Moyens', qtyField: 'medium2Quantity', soldField: 'medium2Sold' },
-                            { id: '5', name: 'Moyens-grands', qtyField: 'large1Quantity', soldField: 'large1Sold' },
-                            { id: '6', name: 'Grands', qtyField: 'large2Quantity', soldField: 'large2Sold' },
-                            { id: '7', name: 'Très grands', qtyField: 'xlarge1Quantity', soldField: 'xlarge1Sold' },
-                            { id: '8', name: 'Géants', qtyField: 'xlarge2Quantity', soldField: 'xlarge2Sold' }
-                        ];
-                        
-                        // Calculer CE QUI RESTE de ce qui a été attribué
-                        let totalAttribue = 0;
-                        let totalRestant = 0;
-                        let categoriesHTML = '';
-                        
-                        categories.forEach(cat => {
-                            // Combien a été attribué à cette boutique pour cette catégorie ?
-                            const attribue = stockAttribue.categories?.[cat.id] || 0;
-                            
-                            // Combien a déjà été vendu dans la production globale ?
-                            const dejaVenduGlobal = production[cat.soldField] || 0;
-                            
-                            // IMPORTANT : On ne sait pas combien cette boutique a vendu
-                            // Pour simplifier, on montre combien IL RESTE de ce qui a été attribué
-                            // Mais ce n'est pas exact car d'autres boutiques peuvent avoir vendu
-                            
-                            // Pour l'instant, on montre juste ce qui a été attribué
-                            if (attribue > 0) {
-                                totalAttribue += attribue;
-                                // On suppose qu'aucun n'a été vendu encore
-                                totalRestant += attribue;
-                                
-                                categoriesHTML += `
-                                    <div style="font-size: 0.8rem; color: #666; margin-top: 3px;">
-                                        • ${cat.name}: <strong>${attribue}</strong> attribués
-                                    </div>
-                                `;
-                            }
-                        });
-                        
-                        return {
-                            html: `
-                                <div class="stock-card" data-stock-id="${doc.id}" data-production-id="${stockAttribue.productionId}"
-                                     style="background: white; border: 2px solid ${currentBoutique.id === 'sacre-coeur' ? '#3B82F6' : '#10B981'}; border-radius: 10px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s;">
-                                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                                        <div>
-                                            <div style="font-weight: bold; color: #333;">Production du ${dateStr}</div>
-                                            <div style="color: #666; font-size: 0.9rem; margin-top: 5px;">
-                                                <span style="color: #10b981; font-weight: bold;">
-                                                    ${totalAttribue} poulets attribués à votre boutique
-                                                </span>
-                                            </div>
-                                            ${categoriesHTML}
-                                        </div>
-                                        <div style="text-align: right;">
-                                            <div style="background: ${currentBoutique.id === 'sacre-coeur' ? '#f0f9ff' : '#f0fff4'}; 
-                                                 color: ${currentBoutique.id === 'sacre-coeur' ? '#0369a1' : '#059669'}; 
-                                                 padding: 5px 10px; border-radius: 5px; font-size: 0.9rem; font-weight: bold;">
-                                                VOTRE STOCK
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            `
-                        };
-                    })
-                    .catch(error => {
-                        console.error('Erreur chargement production:', error);
-                        return null;
-                    });
-                
-                stockPromises.push(promise);
             });
             
-            // Attendre que toutes les données soient chargées
-            Promise.all(stockPromises)
-                .then(results => {
-                    results.forEach(result => {
-                        if (result) stocksHTML += result.html;
-                    });
+            if (!stocksHTML) {
+                stocksHTML = `
+                    <div style="text-align: center; padding: 40px; color: #999;">
+                        <i class="fas fa-box-open" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                        <h3>Aucun stock disponible</h3>
+                        <p>Tous vos stocks sont épuisés</p>
+                    </div>
+                `;
+            }
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 15px; padding: 25px; width: 100%; max-width: 600px; max-height: 80vh; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0; color: #333;">
+                            <i class="fas fa-boxes"></i> Votre Stock Réel - ${currentBoutique.name}
+                        </h2>
+                        <button onclick="document.getElementById('selectStockModal').remove()"
+                                style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                     
-                    if (!stocksHTML) {
-                        stocksHTML = `
-                            <div style="text-align: center; padding: 40px; color: #999;">
-                                <i class="fas fa-box-open" style="font-size: 3rem; margin-bottom: 15px;"></i>
-                                <h3>Aucun stock attribué</h3>
-                                <p>Contactez l'administrateur pour recevoir du stock</p>
-                            </div>
-                        `;
-                    }
-                    
-                    modal.innerHTML = `
-                        <div style="background: white; border-radius: 15px; padding: 25px; width: 100%; max-width: 600px; max-height: 80vh; overflow-y: auto;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                                <h2 style="margin: 0; color: #333;">
-                                    <i class="fas fa-boxes"></i> Votre Stock - ${currentBoutique.name}
-                                </h2>
-                                <button onclick="document.getElementById('selectStockModal').remove()"
-                                        style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                            
-                            <div style="margin-bottom: 15px; background: ${currentBoutique.id === 'sacre-coeur' ? '#f0f9ff' : '#f0fff4'}; 
-                                 padding: 10px; border-radius: 8px; border-left: 4px solid ${currentBoutique.id === 'sacre-coeur' ? '#3B82F6' : '#10B981'};">
-                                <i class="fas fa-info-circle"></i> 
-                                Vous voyez uniquement le stock qui vous a été attribué.
-                            </div>
-                            
-                            <div id="stocksList" style="max-height: 400px; overflow-y: auto; padding-right: 10px;">
-                                ${stocksHTML}
-                            </div>
-                            
-                            <div style="margin-top: 20px; text-align: center;">
-                                <button onclick="document.getElementById('selectStockModal').remove()"
-                                        style="background: #666; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer;">
-                                    Fermer
-                                </button>
-                            </div>
+                    <div style="margin-bottom: 15px; background: #f0f9ff; padding: 10px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                        <div style="font-weight: bold; color: #0369a1; margin-bottom: 5px;">
+                            <i class="fas fa-info-circle"></i> CALCUL RÉEL
                         </div>
-                    `;
-                    
-                    document.body.appendChild(modal);
-                    
-                    // Ajouter les événements
-                    document.querySelectorAll('.stock-card').forEach(card => {
-                        card.addEventListener('click', function() {
-                            const stockId = this.getAttribute('data-stock-id');
-                            const productionId = this.getAttribute('data-production-id');
-                            loadStockForInvoice(stockId, productionId);
-                        });
-                    });
-                })
-                .catch(error => {
-                    console.error('Erreur chargement stocks:', error);
-                    modal.innerHTML = `
-                        <div style="background: white; border-radius: 15px; padding: 25px; width: 100%; max-width: 600px;">
-                            <div style="text-align: center; padding: 40px; color: #ff4757;">
-                                <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 15px;"></i>
-                                <h3>Erreur technique</h3>
-                                <p>Impossible de charger vos stocks</p>
-                                <button onclick="document.getElementById('selectStockModal').remove()"
-                                        style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 8px; margin-top: 15px;">
-                                    Fermer
-                                </button>
-                            </div>
+                        <div style="font-size: 0.9rem; color: #666;">
+                            Basé sur l'historique complet des ventes. ${stocksAvecStock} stock(s) encore disponible(s).
                         </div>
-                    `;
+                    </div>
+                    
+                    <div id="stocksList" style="max-height: 400px; overflow-y: auto; padding-right: 10px;">
+                        ${stocksHTML}
+                    </div>
+                    
+                    <div style="margin-top: 20px; text-align: center;">
+                        <button onclick="document.getElementById('selectStockModal').remove()"
+                                style="background: #666; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer;">
+                            Fermer
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Ajouter les événements
+            document.querySelectorAll('.stock-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    const stockId = this.getAttribute('data-stock-id');
+                    const productionId = this.getAttribute('data-production-id');
+                    loadStockForInvoice(stockId, productionId);
                 });
-        })
-        .catch(error => {
-            console.error('Erreur chargement stocks attribués:', error);
-            showMessage('Aucun stock attribué à votre boutique', 'error');
+            });
+            
+        }).catch(error => {
+            console.error('Erreur chargement stocks:', error);
+            showMessage('Erreur calcul des stocks', 'error');
         });
 }
 
@@ -2986,20 +2972,21 @@ function loadStockForInvoice(stockId, productionId) {
         });
 }
 
-async function openInvoicePageWithStock(stockAttribue, production, stockId, productionId) {
-    console.log('🔓 Ouverture facture avec stock synchronisé');
+// Ouvrir la page de facturation avec le stock
+function openInvoicePageWithStock(stockAttribue, production, stockId, productionId) {
+    console.log('📂 Ouvrir facture avec stock:', stockId, productionId);
     
-    // Nettoyer les anciens affichages
-    document.querySelectorAll('#stockInfo').forEach(el => el.remove());
+    // SUPPRIMER LES ANCIENS PANELS
+    document.querySelectorAll('#stockInfo').forEach(panel => panel.remove());
     
-    // Stocker les informations
+    // ============ CRITIQUE : BIEN DÉFINIR LES IDs ============
     currentInvoice = {
         id: null,
         boutique: currentBoutique.id,
         boutiqueName: currentBoutique.name,
         boutiquePhone: currentBoutique.phone,
-        productionId: productionId,
-        stockAttribueId: stockId,
+        productionId: productionId, // BIEN DÉFINI
+        stockAttribueId: stockId,   // BIEN DÉFINI
         stockData: stockAttribue,
         productionData: production,
         client: {},
@@ -3008,31 +2995,41 @@ async function openInvoicePageWithStock(stockAttribue, production, stockId, prod
         date: new Date()
     };
     
+    console.log("✅ currentInvoice défini:", {
+        stockAttribueId: currentInvoice.stockAttribueId,
+        productionId: currentInvoice.productionId
+    });
+    
     // Afficher la page
     document.getElementById('mainInterface').style.display = 'none';
     document.getElementById('invoicePage').style.display = 'block';
     
-    // Réinitialiser le formulaire
-    resetInvoiceForm();
+    // NE PAS appeler resetInvoiceForm() ici
+    // À la place, réinitialiser manuellement
+    document.getElementById('clientName').value = '';
+    document.getElementById('clientPhone').value = '';
+    document.getElementById('clientAddress').value = '';
+    document.querySelectorAll('.category-input').forEach(input => input.value = 0);
+    selectedItems = {};
+    document.getElementById('totalAmount').textContent = '0 F CFA';
+    updateSelectedItemsList();
     
-    // Afficher le stock AVEC SYNCHRONISATION
-    await showAttributedStock(stockAttribue, production);
+    // Afficher le stock
+    showAttributedStock(stockAttribue, production);
     
-    showMessage('✅ Stock chargé et synchronisé', 'success');
+    showMessage('✓ Stock chargé', 'success');
 }
-
 // Afficher le stock attribué (VERSION SYNCHRONISÉE)
+// Afficher le stock attribué avec calcul RÉEL
 async function showAttributedStock(stockAttribue, production) {
-    console.log("🎯 Affichage stock synchronisé");
+    console.log("🔄 Affichage stock avec calcul réel...");
     
-    // Synchroniser AVANT d'afficher
-    const syncResult = await syncStockWithSales(stockAttribue.id || currentInvoice.stockAttribueId, currentBoutique.id);
+    // SUPPRIMER TOUS les anciens affichages
+    document.querySelectorAll('[id^="stockInfo"]').forEach(el => el.remove());
     
-    // Recharger les données après sync
-    const updatedStockDoc = await db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId).get();
-    const updatedStock = updatedStockDoc.exists ? updatedStockDoc.data() : stockAttribue;
+    // Calculer les ventes RÉELLES depuis l'historique
+    const ventesReelles = await calculateActualSales(currentInvoice.stockAttribueId);
     
-    // Créer le conteneur
     const stockInfo = document.createElement('div');
     stockInfo.id = 'stockInfo';
     stockInfo.style.cssText = `
@@ -3055,19 +3052,6 @@ async function showAttributedStock(stockAttribue, production) {
         { id: '8', name: 'Géants', weight: '+2.4 kg' }
     ];
     
-    // Calculer les totaux
-    const soldByCategory = updatedStock.soldByCategory || {};
-    let totalAttribue = 0;
-    let totalVendu = 0;
-    
-    // Compter le total attribué
-    categories.forEach(cat => {
-        totalAttribue += updatedStock.categories?.[cat.id] || 0;
-        totalVendu += soldByCategory[cat.id] || 0;
-    });
-    
-    const totalRestant = Math.max(0, totalAttribue - totalVendu);
-    
     let stockHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
@@ -3075,49 +3059,74 @@ async function showAttributedStock(stockAttribue, production) {
                     <i class="fas fa-boxes-stacked"></i> Stock Attribué - ${currentBoutique.name}
                 </h4>
                 <p style="margin: 5px 0 0 0; color: #666; font-size: 0.9rem;">
-                    Synchronisé avec les ventes en temps réel
+                    <i class="fas fa-history"></i> Calculé depuis l'historique des ventes
                 </p>
             </div>
-            <button onclick="forceSyncStock()" 
-                    style="background: #3b82f6; color: white; border: none; padding: 5px 10px; 
-                           border-radius: 5px; font-size: 0.8rem; cursor: pointer;">
-                <i class="fas fa-sync-alt"></i> Actualiser
-            </button>
+            <div style="background: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; color: #0369a1;">
+                <i class="fas fa-calculator"></i> Ventes réelles
+            </div>
         </div>
         
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px;">
     `;
     
-    // Afficher chaque catégorie
+    let totalAttribue = 0;
+    let totalVenduReel = 0;
+    let totalRestant = 0;
+    
     categories.forEach(cat => {
-        const attribue = updatedStock.categories?.[cat.id] || 0;
-        const vendu = soldByCategory[cat.id] || 0;
-        const restant = Math.max(0, attribue - vendu);
+        const attribue = stockAttribue.categories[cat.id] || 0;
+        const venduReel = ventesReelles[cat.id] || 0;
+        const restant = attribue - venduReel;
+        
+        totalAttribue += attribue;
+        totalVenduReel += venduReel;
+        totalRestant += restant;
         
         if (attribue > 0) {
+            // Couleur selon le stock
+            let couleurRestant = '#10b981'; // vert si OK
+            let symbole = '';
+            
+            if (restant < 0) {
+                couleurRestant = '#ef4444'; // rouge si négatif
+                symbole = '⚠️ ';
+            } else if (restant === 0) {
+                couleurRestant = '#f59e0b'; // orange si zéro
+            }
+            
             stockHTML += `
-                <div style="text-align: center; background: white; padding: 10px; border-radius: 8px; border: 1px solid #e0e0e0;">
+                <div style="text-align: center; background: white; padding: 10px; border-radius: 8px; border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                     <div style="font-size: 0.9rem; font-weight: bold; color: #333; margin-bottom: 5px;">
                         ${cat.name}
                     </div>
                     <div style="font-size: 0.8rem; color: #666; margin-bottom: 5px;">
                         ${cat.weight}
                     </div>
+                    
                     <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 3px;">
                         <span style="color: #666;">Attribué :</span>
                         <span style="font-weight: bold; color: #3b82f6;">${attribue}</span>
                     </div>
+                    
                     <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 3px;">
-                        <span style="color: #666;">Vous avez vendu :</span>
-                        <span style="color: ${vendu > 0 ? '#ef4444' : '#666'}; font-weight: ${vendu > 0 ? 'bold' : 'normal'};">${vendu}</span>
+                        <span style="color: #666;">Vendu (réel) :</span>
+                        <span style="color: #8b5cf6; font-weight: bold;">${venduReel}</span>
                     </div>
+                    
                     <div style="border-top: 1px solid #e0e0e0; padding-top: 5px; margin-top: 5px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="color: #666; font-size: 0.8rem;">Il vous reste :</span>
-                            <span style="font-weight: bold; color: ${restant > 0 ? '#10b981' : '#ef4444'}; font-size: 1.1rem;">
-                                ${restant}
+                            <span style="color: #666; font-size: 0.8rem;">Reste :</span>
+                            <span style="font-weight: bold; color: ${couleurRestant}; font-size: 1.1rem;">
+                                ${symbole}${restant}
                             </span>
                         </div>
+                        ${restant < 0 ? 
+                            `<div style="color: #ef4444; font-size: 0.7rem; margin-top: 3px;">
+                                ⚠️ Survente: ${Math.abs(restant)} unités
+                            </div>` 
+                            : ''
+                        }
                     </div>
                 </div>
             `;
@@ -3126,39 +3135,25 @@ async function showAttributedStock(stockAttribue, production) {
     
     stockHTML += `</div>`;
     
-    // Résumé SYNCHRONISÉ
+    // Résumé avec calcul RÉEL
     stockHTML += `
-        <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 8px; border: 1px solid ${currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981'};">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div style="font-weight: bold; color: #333;">
-                    <i class="fas fa-chart-bar"></i> RÉSUMÉ SYNCHRONISÉ
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 0.9rem; color: #666;">Total attribué : ${totalAttribue}</div>
-                    <div style="font-size: 1.2rem; font-weight: bold; color: ${totalRestant > 0 ? (currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981') : '#ef4444'};">
-                        ${totalRestant} disponibles
-                    </div>
-                    <div style="font-size: 0.8rem; color: ${totalVendu > 0 ? '#ef4444' : '#666'};">
-                        (Déjà vendus : ${totalVendu})
-                    </div>
-                </div>
+        <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 8px; border: 1px solid ${currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981'}; display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-weight: bold; color: #333;">
+                <i class="fas fa-chart-bar"></i> RÉSUMÉ RÉEL (depuis historique)
             </div>
-            
-            <div style="margin-top: 10px; padding: 8px; background: #f8fafc; border-radius: 5px; font-size: 0.8rem; color: #666;">
-                <i class="fas fa-info-circle"></i> 
-                Dernière synchronisation : ${new Date().toLocaleTimeString()}
+            <div style="text-align: right;">
+                <div style="font-size: 0.9rem; color: #666;">Total attribué : ${totalAttribue}</div>
+                <div style="font-size: 0.9rem; color: #8b5cf6;">Total vendu réel : ${totalVenduReel}</div>
+                <div style="font-size: 1.2rem; font-weight: bold; color: ${totalRestant > 0 ? (currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981') : '#ef4444'};">
+                    ${totalRestant >= 0 ? 'Reste : ' : 'Déficit : '}${totalRestant}
+                </div>
             </div>
         </div>
+        
+        <div style="margin-top: 10px; padding: 8px; background: #f8fafc; border-radius: 5px; font-size: 0.8rem; color: #666; text-align: center;">
+            <i class="fas fa-info-circle"></i> Basé sur ${Object.values(ventesReelles).reduce((a,b) => a+b, 0)} ventes enregistrées
+        </div>
     `;
-    
-    // Avertissement si stock épuisé
-    if (totalRestant <= 0) {
-        stockHTML += `
-            <div style="margin-top: 10px; padding: 10px; background: #fee2e2; color: #dc2626; border-radius: 5px; text-align: center; font-weight: bold;">
-                <i class="fas fa-exclamation-triangle"></i> Stock épuisé !
-            </div>
-        `;
-    }
     
     stockInfo.innerHTML = stockHTML;
     
@@ -3167,26 +3162,26 @@ async function showAttributedStock(stockAttribue, production) {
     const firstChild = invoicePage.children[0];
     invoicePage.insertBefore(stockInfo, firstChild.nextSibling);
     
-    // Mettre à jour les limites des inputs
+    // LIMITER les inputs au stock RESTANT RÉEL
     categories.forEach(cat => {
-        const attribue = updatedStock.categories?.[cat.id] || 0;
-        const vendu = soldByCategory[cat.id] || 0;
-        const restant = Math.max(0, attribue - vendu);
-        const input = document.getElementById(`cat-${cat.id}`);
+        const attribue = stockAttribue.categories[cat.id] || 0;
+        const venduReel = ventesReelles[cat.id] || 0;
+        const restant = Math.max(0, attribue - venduReel); // Ne pas autoriser négatif dans l'input
         
+        const input = document.getElementById(`cat-${cat.id}`);
         if (input) {
             input.max = restant;
-            input.setAttribute('data-stock-restant', restant);
             
-            // Afficher un avertissement si peu de stock
-            if (restant < 10 && restant > 0) {
-                input.style.borderColor = '#f59e0b';
-                input.style.backgroundColor = '#fffbeb';
+            // Afficher avertissement si survente
+            if (attribue - venduReel < 0) {
+                input.style.borderColor = '#ef4444';
+                input.style.backgroundColor = '#fee2e2';
+                input.title = `ATTENTION: Survente de ${Math.abs(attribue - venduReel)} unités!`;
             }
         }
     });
     
-    console.log("✅ Affichage mis à jour avec données synchronisées");
+    console.log("✅ Affichage mis à jour avec données réelles");
 }
   
   // Forcer la synchronisation manuelle
