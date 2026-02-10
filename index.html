@@ -542,7 +542,88 @@
             total: 0,
             date: new Date()
         };
+        // ==================== SYSTÈME DE SYNCHRONISATION INTELLIGENT ====================
+async function syncStockWithSales(stockAttribueId, boutiqueId) {
+    console.log("🔄 Synchronisation des ventes pour stock:", stockAttribueId);
+    
+    try {
+        // 1. Récupérer TOUTES les factures de cette boutique
+        const invoicesSnapshot = await db.collection('invoices')
+            .where('boutique', '==', boutiqueId)
+            .where('stockAttribueId', '==', stockAttribueId)
+            .get();
         
+        console.log(`📊 ${invoicesSnapshot.size} factures trouvées pour ce stock`);
+        
+        // 2. Calculer le total vendu par catégorie
+        const soldByCategory = {};
+        let totalSold = 0;
+        
+        invoicesSnapshot.forEach(doc => {
+            const invoice = doc.data();
+            if (invoice.items && Array.isArray(invoice.items)) {
+                invoice.items.forEach(item => {
+                    const catId = item.id.toString();
+                    const quantity = item.quantity || 0;
+                    
+                    soldByCategory[catId] = (soldByCategory[catId] || 0) + quantity;
+                    totalSold += quantity;
+                    
+                    console.log(`📝 Facture ${doc.id}: ${quantity} ${item.name}`);
+                });
+            }
+        });
+        
+        console.log("🧮 Total vendu par catégorie:", soldByCategory);
+        console.log("💰 Total général vendu:", totalSold);
+        
+        // 3. Mettre à jour le stock attribué dans Firebase
+        const stockRef = db.collection('stocks_attribues').doc(stockAttribueId);
+        const stockDoc = await stockRef.get();
+        
+        if (!stockDoc.exists) {
+            console.error("❌ Stock non trouvé");
+            return null;
+        }
+        
+        const stockData = stockDoc.data();
+        const totalAttribue = stockData.total || 0;
+        const remaining = Math.max(0, totalAttribue - totalSold);
+        
+        // Préparer la mise à jour
+        const updateData = {
+            soldByCategory: soldByCategory,
+            totalSold: totalSold,
+            remaining: remaining,
+            lastSyncDate: new Date().toISOString(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        // Vérifier si épuisé
+        if (remaining === 0) {
+            updateData.status = 'completed';
+        } else if (stockData.status === 'completed' && remaining > 0) {
+            updateData.status = 'active';
+        }
+        
+        console.log("📝 Mise à jour à appliquer:", updateData);
+        
+        // Appliquer la mise à jour
+        await stockRef.update(updateData);
+        console.log("✅ Synchronisation terminée!");
+        
+        return {
+            soldByCategory: soldByCategory,
+            totalSold: totalSold,
+            remaining: remaining,
+            totalAttribue: totalAttribue
+        };
+        
+    } catch (error) {
+        console.error("💥 Erreur synchronisation:", error);
+        return null;
+    }
+}
         // Données des catégories (LES MÊMES QUE VOTRE SITE)
         const categories = [
             { id: 1, name: "Très petits", weight: "1.0-1.1 kg", price: 2000 },
@@ -2905,16 +2986,13 @@ function loadStockForInvoice(stockId, productionId) {
         });
 }
 
-// Ouvrir la page de facturation avec le stock
-function openInvoicePageWithStock(stockAttribue, production, stockId, productionId) {
-    console.log('Ouvrir facture avec:', { stockId, productionId, stockAttribue });
+async function openInvoicePageWithStock(stockAttribue, production, stockId, productionId) {
+    console.log('🔓 Ouverture facture avec stock synchronisé');
     
-    // ============ CORRECTION : SUPPRIMER LES ANCIENS PANELS ============
-    const oldStockPanels = document.querySelectorAll('#stockInfo');
-    oldStockPanels.forEach(panel => panel.remove());
-    // ==================================================================
+    // Nettoyer les anciens affichages
+    document.querySelectorAll('#stockInfo').forEach(el => el.remove());
     
-    // STOCKER CORRECTEMENT LES INFORMATIONS
+    // Stocker les informations
     currentInvoice = {
         id: null,
         boutique: currentBoutique.id,
@@ -2930,21 +3008,31 @@ function openInvoicePageWithStock(stockAttribue, production, stockId, production
         date: new Date()
     };
     
-    // Afficher la page de facturation
+    // Afficher la page
     document.getElementById('mainInterface').style.display = 'none';
     document.getElementById('invoicePage').style.display = 'block';
     
     // Réinitialiser le formulaire
     resetInvoiceForm();
     
-    // Afficher les infos du stock attribué
-    showAttributedStock(stockAttribue, production);
+    // Afficher le stock AVEC SYNCHRONISATION
+    await showAttributedStock(stockAttribue, production);
     
-    showMessage('✓ Stock chargé avec succès', 'success');
+    showMessage('✅ Stock chargé et synchronisé', 'success');
 }
 
-// Afficher le stock attribué (VERSION MODIFIÉE)
-function showAttributedStock(stockAttribue, production) {
+// Afficher le stock attribué (VERSION SYNCHRONISÉE)
+async function showAttributedStock(stockAttribue, production) {
+    console.log("🎯 Affichage stock synchronisé");
+    
+    // Synchroniser AVANT d'afficher
+    const syncResult = await syncStockWithSales(stockAttribue.id || currentInvoice.stockAttribueId, currentBoutique.id);
+    
+    // Recharger les données après sync
+    const updatedStockDoc = await db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId).get();
+    const updatedStock = updatedStockDoc.exists ? updatedStockDoc.data() : stockAttribue;
+    
+    // Créer le conteneur
     const stockInfo = document.createElement('div');
     stockInfo.id = 'stockInfo';
     stockInfo.style.cssText = `
@@ -2957,15 +3045,28 @@ function showAttributedStock(stockAttribue, production) {
     
     // Les 8 catégories
     const categories = [
-        { id: '1', name: 'Très petits', weight: '1-1.1 kg', qtyField: 'small1Quantity', soldField: 'small1Sold', priceField: 'small1Price' },
-        { id: '2', name: 'Petits', weight: '1.2 kg', qtyField: 'small2Quantity', soldField: 'small2Sold', priceField: 'small2Price' },
-        { id: '3', name: 'Moyens-petits', weight: '1.3-1.4 kg', qtyField: 'medium1Quantity', soldField: 'medium1Sold', priceField: 'medium1Price' },
-        { id: '4', name: 'Moyens', weight: '1.5-1.6 kg', qtyField: 'medium2Quantity', soldField: 'medium2Sold', priceField: 'medium2Price' },
-        { id: '5', name: 'Moyens-grands', weight: '1.7-1.9 kg', qtyField: 'large1Quantity', soldField: 'large1Sold', priceField: 'large1Price' },
-        { id: '6', name: 'Grands', weight: '2 kg', qtyField: 'large2Quantity', soldField: 'large2Sold', priceField: 'large2Price' },
-        { id: '7', name: 'Très grands', weight: '2.1-2.3 kg', qtyField: 'xlarge1Quantity', soldField: 'xlarge1Sold', priceField: 'xlarge1Price' },
-        { id: '8', name: 'Géants', weight: '+2.4 kg', qtyField: 'xlarge2Quantity', soldField: 'xlarge2Sold', priceField: 'xlarge2Price' }
+        { id: '1', name: 'Très petits', weight: '1-1.1 kg' },
+        { id: '2', name: 'Petits', weight: '1.2 kg' },
+        { id: '3', name: 'Moyens-petits', weight: '1.3-1.4 kg' },
+        { id: '4', name: 'Moyens', weight: '1.5-1.6 kg' },
+        { id: '5', name: 'Moyens-grands', weight: '1.7-1.9 kg' },
+        { id: '6', name: 'Grands', weight: '2 kg' },
+        { id: '7', name: 'Très grands', weight: '2.1-2.3 kg' },
+        { id: '8', name: 'Géants', weight: '+2.4 kg' }
     ];
+    
+    // Calculer les totaux
+    const soldByCategory = updatedStock.soldByCategory || {};
+    let totalAttribue = 0;
+    let totalVendu = 0;
+    
+    // Compter le total attribué
+    categories.forEach(cat => {
+        totalAttribue += updatedStock.categories?.[cat.id] || 0;
+        totalVendu += soldByCategory[cat.id] || 0;
+    });
+    
+    const totalRestant = Math.max(0, totalAttribue - totalVendu);
     
     let stockHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -2974,96 +3075,81 @@ function showAttributedStock(stockAttribue, production) {
                     <i class="fas fa-boxes-stacked"></i> Stock Attribué - ${currentBoutique.name}
                 </h4>
                 <p style="margin: 5px 0 0 0; color: #666; font-size: 0.9rem;">
-                    Vous pouvez vendre jusqu'à :
+                    Synchronisé avec les ventes en temps réel
                 </p>
             </div>
+            <button onclick="forceSyncStock()" 
+                    style="background: #3b82f6; color: white; border: none; padding: 5px 10px; 
+                           border-radius: 5px; font-size: 0.8rem; cursor: pointer;">
+                <i class="fas fa-sync-alt"></i> Actualiser
+            </button>
         </div>
         
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px;">
     `;
     
-    let totalAttribue = 0;
-    let totalRestant = 0;
-    
-    // Dans showAttributedStock(), MODIFIEZ le calcul :
-
-// MODIFICATION : UTILISER LES DONNÉES MISE À JOUR
-categories.forEach(cat => {
-    const attribue = stockAttribue.categories[cat.id] || 0;
-    
-    // CORRECTION : SI soldByCategory n'existe pas, l'initialiser
-    const soldByCategory = stockAttribue.soldByCategory || {};
-    const venduParCetteBoutique = soldByCategory[cat.id] || 0;
-    
-    const restantPourCetteBoutique = Math.max(0, attribue - venduParCetteBoutique);
-    
-    totalAttribue += attribue;
-    totalRestant += restantPourCetteBoutique;
-    
-    if (attribue > 0) {
-        stockHTML += `
-            <div style="text-align: center; background: white; padding: 10px; border-radius: 8px; border: 1px solid #e0e0e0;">
-                <div style="font-size: 0.9rem; font-weight: bold; color: #333; margin-bottom: 5px;">
-                    ${cat.name}
-                </div>
-                <div style="font-size: 0.8rem; color: #666; margin-bottom: 5px;">
-                    ${cat.weight}
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 3px;">
-                    <span style="color: #666;">Attribué :</span>
-                    <span style="font-weight: bold;">${attribue}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 3px;">
-                    <span style="color: #666;">Vous avez vendu :</span>
-                    <span style="color: #ef4444;">${venduParCetteBoutique}</span>
-                </div>
-                <div style="border-top: 1px solid #e0e0e0; padding-top: 5px; margin-top: 5px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #666; font-size: 0.8rem;">Il vous reste :</span>
-                        <span style="font-weight: bold; color: ${restantPourCetteBoutique > 0 ? '#10b981' : '#ef4444'}; font-size: 1.1rem;">
-                            ${restantPourCetteBoutique}
-                        </span>
+    // Afficher chaque catégorie
+    categories.forEach(cat => {
+        const attribue = updatedStock.categories?.[cat.id] || 0;
+        const vendu = soldByCategory[cat.id] || 0;
+        const restant = Math.max(0, attribue - vendu);
+        
+        if (attribue > 0) {
+            stockHTML += `
+                <div style="text-align: center; background: white; padding: 10px; border-radius: 8px; border: 1px solid #e0e0e0;">
+                    <div style="font-size: 0.9rem; font-weight: bold; color: #333; margin-bottom: 5px;">
+                        ${cat.name}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #666; margin-bottom: 5px;">
+                        ${cat.weight}
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 3px;">
+                        <span style="color: #666;">Attribué :</span>
+                        <span style="font-weight: bold; color: #3b82f6;">${attribue}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 3px;">
+                        <span style="color: #666;">Vous avez vendu :</span>
+                        <span style="color: ${vendu > 0 ? '#ef4444' : '#666'}; font-weight: ${vendu > 0 ? 'bold' : 'normal'};">${vendu}</span>
+                    </div>
+                    <div style="border-top: 1px solid #e0e0e0; padding-top: 5px; margin-top: 5px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: #666; font-size: 0.8rem;">Il vous reste :</span>
+                            <span style="font-weight: bold; color: ${restant > 0 ? '#10b981' : '#ef4444'}; font-size: 1.1rem;">
+                                ${restant}
+                            </span>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-    }
-});
+            `;
+        }
+    });
     
     stockHTML += `</div>`;
     
-    // Résumé
-   // ============ CORRECTION : CALCUL EXACT ============
-// Recalculer totalAttribue et totalRestant pour être sûr
-let totalAttribueCalc = 0;
-let totalRestantCalc = 0;
-
-categories.forEach(cat => {
-    const attribue = stockAttribue.categories[cat.id] || 0;
-    const soldByCategory = stockAttribue.soldByCategory || {};
-    const vendu = soldByCategory[cat.id] || 0;
-    
-    totalAttribueCalc += attribue;
-    totalRestantCalc += Math.max(0, attribue - vendu);
-});
-
-// Résumé CORRIGÉ
-stockHTML += `
-    <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 8px; border: 1px solid ${currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981'}; display: flex; justify-content: space-between; align-items: center;">
-        <div style="font-weight: bold; color: #333;">
-            <i class="fas fa-chart-bar"></i> RÉSUMÉ DU STOCK ATTRIBUÉ
-        </div>
-        <div style="text-align: right;">
-            <div style="font-size: 0.9rem; color: #666;">Total attribué : ${totalAttribueCalc}</div>
-            <div style="font-size: 1.2rem; font-weight: bold; color: ${totalRestantCalc > 0 ? (currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981') : '#ef4444'};">
-                ${totalRestantCalc} disponibles
+    // Résumé SYNCHRONISÉ
+    stockHTML += `
+        <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 8px; border: 1px solid ${currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981'};">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-weight: bold; color: #333;">
+                    <i class="fas fa-chart-bar"></i> RÉSUMÉ SYNCHRONISÉ
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.9rem; color: #666;">Total attribué : ${totalAttribue}</div>
+                    <div style="font-size: 1.2rem; font-weight: bold; color: ${totalRestant > 0 ? (currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981') : '#ef4444'};">
+                        ${totalRestant} disponibles
+                    </div>
+                    <div style="font-size: 0.8rem; color: ${totalVendu > 0 ? '#ef4444' : '#666'};">
+                        (Déjà vendus : ${totalVendu})
+                    </div>
+                </div>
             </div>
-            <div style="font-size: 0.8rem; color: #666;">
-                (Déjà vendus : ${totalAttribueCalc - totalRestantCalc})
+            
+            <div style="margin-top: 10px; padding: 8px; background: #f8fafc; border-radius: 5px; font-size: 0.8rem; color: #666;">
+                <i class="fas fa-info-circle"></i> 
+                Dernière synchronisation : ${new Date().toLocaleTimeString()}
             </div>
         </div>
-    </div>
-`;
+    `;
     
     // Avertissement si stock épuisé
     if (totalRestant <= 0) {
@@ -3076,35 +3162,62 @@ stockHTML += `
     
     stockInfo.innerHTML = stockHTML;
     
-    // Insérer au début de la page de facturation
+    // Insérer au début de la page
     const invoicePage = document.getElementById('invoicePage');
     const firstChild = invoicePage.children[0];
     invoicePage.insertBefore(stockInfo, firstChild.nextSibling);
     
-    // LIMITER LES INPUTS AU STOCK DISPONIBLE
+    // Mettre à jour les limites des inputs
     categories.forEach(cat => {
-        const attribue = stockAttribue.categories[cat.id] || 0;
-        const dejaVendu = production[cat.soldField] || 0;
-        const restant = Math.max(0, attribue - dejaVendu);
-        const prix = production[cat.priceField] || 0;
-        
+        const attribue = updatedStock.categories?.[cat.id] || 0;
+        const vendu = soldByCategory[cat.id] || 0;
+        const restant = Math.max(0, attribue - vendu);
         const input = document.getElementById(`cat-${cat.id}`);
+        
         if (input) {
-            // Limiter le maximum au stock restant
             input.max = restant;
-            input.setAttribute('data-price', prix);
+            input.setAttribute('data-stock-restant', restant);
             
-            // Mettre à jour l'affichage du prix
-            const card = input.closest('.category-card');
-            if (card) {
-                const priceElement = card.querySelector('.category-price');
-                if (priceElement) {
-                    priceElement.textContent = `${prix.toLocaleString('fr-FR')} F CFA`;
-                }
+            // Afficher un avertissement si peu de stock
+            if (restant < 10 && restant > 0) {
+                input.style.borderColor = '#f59e0b';
+                input.style.backgroundColor = '#fffbeb';
             }
         }
     });
+    
+    console.log("✅ Affichage mis à jour avec données synchronisées");
 }
+  
+  // Forcer la synchronisation manuelle
+async function forceSyncStock() {
+    if (!currentInvoice.stockAttribueId) {
+        showMessage('Aucun stock sélectionné', 'error');
+        return;
+    }
+    
+    showMessage('Synchronisation en cours...', 'warning');
+    
+    const result = await syncStockWithSales(currentInvoice.stockAttribueId, currentBoutique.id);
+    
+    if (result) {
+        // Recharger l'affichage
+        const stockDoc = await db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId).get();
+        const prodDoc = await db.collection('poulailler_records').doc(currentInvoice.productionId).get();
+        
+        const oldStock = document.getElementById('stockInfo');
+        if (oldStock) oldStock.remove();
+        
+        showAttributedStock(stockDoc.data(), prodDoc.data());
+        
+        showMessage(`✅ Synchronisé! ${result.totalSold} poulets vendus`, 'success');
+    } else {
+        showMessage('❌ Erreur synchronisation', 'error');
+    }
+}
+
+// Expose pour le bouton
+window.forceSyncStock = forceSyncStock;
   
 function calculateProductionRevenue(production) {
     // CALCULER LE REVENU DE TOUTES LES 8 CATÉGORIES
@@ -3524,6 +3637,41 @@ function refreshStockAfterSale() {
             console.error("Erreur rechargement stock:", error);
         });
 }
+  
+  
+  // ==================== SURVEILLANCE AUTOMATIQUE ====================
+function startStockMonitoring() {
+    console.log("👁️ Surveillance du stock activée");
+    
+    // Surveiller les changements en temps réel
+    if (currentInvoice.stockAttribueId) {
+        const stockRef = db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId);
+        
+        stockRef.onSnapshot((doc) => {
+            if (doc.exists) {
+                console.log("📡 Changement détecté dans le stock!");
+                const newData = doc.data();
+                
+                // Mettre à jour l'affichage si on est sur la page facture
+                if (document.getElementById('invoicePage').style.display !== 'none') {
+                    setTimeout(() => {
+                        const oldStock = document.getElementById('stockInfo');
+                        if (oldStock) {
+                            oldStock.remove();
+                            showAttributedStock(newData, currentInvoice.productionData);
+                        }
+                    }, 500);
+                }
+            }
+        }, (error) => {
+            console.error("❌ Erreur surveillance:", error);
+        });
+    }
+}
+
+// Démarrer la surveillance quand on ouvre une facture
+// Dans openInvoicePageWithStock(), ajoute :
+// setTimeout(startStockMonitoring, 1000);
 // ============================================================== 
     </script>
    
