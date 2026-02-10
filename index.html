@@ -953,6 +953,88 @@
     color: #10B981;
     border: 1px solid #10B981;
 }
+      /* Styles pour la section dépenses par production */
+.expenses-row {
+    transition: background-color 0.2s;
+}
+
+.expenses-row:hover {
+    background-color: #f8fafc;
+}
+
+.delete-expense-btn {
+    background: none;
+    border: none;
+    color: #ef4444;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 5px;
+    border-radius: 4px;
+}
+
+.delete-expense-btn:hover {
+    background-color: #fee2e2;
+}
+
+.expense-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+}
+
+.expense-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.expense-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.benefice-positive {
+    color: #059669;
+    font-weight: bold;
+}
+
+.benefice-negative {
+    color: #dc2626;
+    font-weight: bold;
+}
+
+.expense-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #f0f9ff;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+}
+
+.expense-modal {
+    max-width: 800px;
+}
+
+.auto-calculate {
+    background-color: #f0fdf4;
+    border-color: #86efac;
+}
+
+.ca-warning {
+    font-size: 0.8rem;
+    color: #f59e0b;
+    margin-top: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
     </style>
 </head>
 <body>
@@ -998,6 +1080,10 @@
                 </button>
               <button class="nav-btn" data-section="stats">
     <i class="fas fa-chart-pie"></i> Statistiques
+</button>
+              <!-- Ajoute cette ligne dans la section nav-links -->
+<button class="nav-btn" data-section="expenses">
+    <i class="fas fa-money-bill-wave"></i> Dépenses par Production
 </button>
             </div>
         </header>
@@ -1741,121 +1827,149 @@
             <div class="stat-label">Poulets vendus</div>
         </div>
     </div>
-    <!-- Gestion des Dépenses -->
-    <div class="table-container">
-        <div class="table-header">
-            <h3 style="margin: 0;">
-                <i class="fas fa-file-invoice-dollar"></i> Gestion des Dépenses
-            </h3>
-            <button id="addExpenseBtn" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Ajouter une Dépense
-            </button>
-        </div>
-        
-        <!-- Formulaire d'ajout de dépense -->
-        <div id="expenseForm" style="display: none; padding: var(--space-lg); background: var(--light-gray); border-radius: var(--radius-md); margin-bottom: var(--space-lg);">
-            <div class="form-grid">
-                <div class="form-group">
-                    <label for="expenseDate" class="form-label">Date</label>
-                    <input type="date" id="expenseDate" class="form-input" value="${new Date().toISOString().split('T')[0]}">
-                </div>
-                
-                <div class="form-group">
-                    <label for="expenseNature" class="form-label">Nature de la dépense</label>
-                    <select id="expenseNature" class="form-input">
-                        <option value="salaire">Salaire</option>
-                        <option value="nourriture">Nourriture poulets</option>
-                        <option value="transport">Transport</option>
-                        <option value="electricite">Électricité</option>
-                        <option value="eau">Eau</option>
-                        <option value="maintenance">Maintenance</option>
-                        <option value="fourniture">Fournitures bureau</option>
-                        <option value="autre">Autre</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="expenseDescription" class="form-label">Description</label>
-                    <input type="text" id="expenseDescription" class="form-input" placeholder="Ex: Salaire mois de Janvier">
-                </div>
-                
-                <div class="form-group">
-                    <label for="expenseAmount" class="form-label">Montant (F CFA)</label>
-                    <input type="number" id="expenseAmount" class="form-input" min="0" placeholder="Ex: 50000">
-                </div>
-            </div>
-            
-            <div class="modal-actions">
-                <button id="cancelExpenseBtn" class="btn btn-secondary">
-                    <i class="fas fa-times"></i> Annuler
-                </button>
-                <button id="saveExpenseBtn" class="btn btn-primary">
-                    <i class="fas fa-save"></i> Enregistrer
-                </button>
-            </div>
-        </div>
-        
-        <!-- Liste des dépenses -->
-        <div class="table-wrapper">
-            <table class="records-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Nature</th>
-                        <th>Description</th>
-                        <th>Montant</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="expensesTableBody">
-                    <!-- Rempli dynamiquement -->
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- Total des dépenses -->
-        <div style="padding: var(--space-lg); background: #fef2f2; border-radius: var(--radius-md); margin-top: var(--space-lg);">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h4 style="margin: 0; color: var(--danger);">
-                        <i class="fas fa-money-bill-wave"></i> Total des Dépenses
-                    </h4>
-                    <p style="margin: 5px 0 0 0; color: var(--gray-text); font-size: 0.9rem;">
-                        Période sélectionnée
-                    </p>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 2rem; font-weight: bold; color: var(--danger);" id="totalExpenses">
-                        0 F CFA
-                    </div>
-                    <div style="font-size: 0.9rem; color: var(--gray-text);">
-                        <span id="expensesCount">0</span> dépenses
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Bénéfice net -->
-            <div style="margin-top: var(--space-lg); padding: var(--space-md); background: white; border-radius: var(--radius-md);">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-weight: bold; color: var(--dark-text);">
-                        <i class="fas fa-calculator"></i> BÉNÉFICE NET
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 1.5rem; font-weight: bold; color: var(--secondary);" id="netProfit">
-                            0 F CFA
-                        </div>
-                        <div style="font-size: 0.9rem; color: var(--gray-text);">
-                            CA - Dépenses
-                        </div>
-                    </div>
-                </div>
-            </div>
-          
-        </div>
-    </div>
+   
   
   
 </section>
+           
+        <!-- Section Dépenses par Production -->
+<section id="expensesSection" class="dashboard-section" style="display: none;">
+    <h2 class="section-title"><i class="fas fa-money-bill-wave"></i> Gestion des Dépenses par Production</h2>
+    
+    <!-- Sélection de la production -->
+    <div class="table-container" style="margin-bottom: var(--space-xl);">
+        <h3 style="margin-bottom: var(--space-lg);">
+            <i class="fas fa-seedling"></i> Sélectionner une Production
+        </h3>
+        
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="selectProductionExpenses" class="form-label">Production</label>
+                <select id="selectProductionExpenses" class="form-input">
+                    <option value="">-- Choisir une production --</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Informations production</label>
+                <div id="productionInfoExpenses" style="padding: 10px; background: var(--light-gray); border-radius: var(--radius-md);">
+                    Sélectionnez d'abord une production
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Section CA et Calcul -->
+    <div id="revenueSection" style="display: none; margin-bottom: var(--space-xl);">
+        <div class="table-container">
+            <h3 style="margin-bottom: var(--space-lg);">
+                <i class="fas fa-calculator"></i> Calcul du Bénéfice
+            </h3>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="productionRevenue" class="form-label">Chiffre d'Affaires (CA) - F CFA</label>
+                    <input type="number" id="productionRevenue" class="form-input" min="0" value="0">
+                    <small style="color: var(--gray-text);">Modifiable uniquement pour le calcul ici</small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Total Dépenses</label>
+                    <div id="totalExpensesDisplay" class="form-input" style="background: #fef2f2; color: #dc2626; font-weight: bold;">
+                        0 F CFA
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Bénéfice Net Estimé</label>
+                    <div id="netProfitDisplay" class="form-input" style="background: #f0fdf4; color: #059669; font-weight: bold;">
+                        0 F CFA
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tableau des dépenses -->
+    <div id="expensesTableSection" style="display: none;">
+        <div class="table-container">
+            <div class="table-header">
+                <h3 style="margin: 0;">
+                    <i class="fas fa-list"></i> Liste des Dépenses
+                </h3>
+                <button id="addExpenseRowBtn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Ajouter une Ligne
+                </button>
+            </div>
+            
+            <div class="table-wrapper">
+                <table class="records-table" id="expensesTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">Nom</th>
+                            <th style="width: 30%;">Description</th>
+                            <th style="width: 10%;">Quantité</th>
+                            <th style="width: 15%;">Prix Unitaire (F CFA)</th>
+                            <th style="width: 15%;">Total (F CFA)</th>
+                            <th style="width: 5%;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expensesTableBody">
+                        <!-- Les lignes seront ajoutées dynamiquement -->
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" style="text-align: right; font-weight: bold;">TOTAL DÉPENSES :</td>
+                            <td id="totalQuantity" style="text-align: center; font-weight: bold;">0</td>
+                            <td id="totalExpensesAmount" style="text-align: right; font-weight: bold; color: #dc2626;">0 F CFA</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            
+            <!-- Boutons d'action -->
+            <div class="modal-actions" style="margin-top: var(--space-xl);">
+                <button id="cancelExpensesBtn" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Annuler
+                </button>
+                <button id="saveExpensesBtn" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Enregistrer les Dépenses
+                </button>
+                <button id="printExpensesBtn" class="btn btn-success" style="display: none;">
+                    <i class="fas fa-print"></i> Imprimer le Rapport
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Liste des productions avec dépenses existantes -->
+    <div id="existingExpensesSection" style="margin-top: var(--space-2xl);">
+        <div class="table-container">
+            <h3 style="margin-bottom: var(--space-lg);">
+                <i class="fas fa-history"></i> Productions avec Dépenses Enregistrées
+            </h3>
+            
+            <div class="table-wrapper">
+                <table class="records-table">
+                    <thead>
+                        <tr>
+                            <th>Date Production</th>
+                            <th>Stock Initial</th>
+                            <th>Dépenses Total</th>
+                            <th>CA Production</th>
+                            <th>Bénéfice Net</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="existingExpensesTableBody">
+                        <!-- Rempli dynamiquement -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>   
         </main>
         
          <footer>
@@ -2233,7 +2347,7 @@
         
         if ((widthThreshold || heightThreshold) && !devtoolsOpen) {
             devtoolsOpen = true;
-            showMessage('Les outils de développement sont détectés', 'error');
+            
             
         }
     }, 1000);
@@ -2529,11 +2643,11 @@ let currentStatsEndDate = null;
         })
         .catch(error => {
             console.error("Erreur de chargement des enregistrements:", error);
-            showMessage('Erreur de chargement des données', 'error');
+            
         });
 }
         
-         // Fonction pour charger les statistiques boutique
+         // Fonction pour charger les s tatistiques boutique
 function loadBoutiqueStats() {
     console.log('Chargement des stats boutique...');
     
@@ -7686,6 +7800,712 @@ function showSection(sectionId) {
         initStockDashboardFilters(); // AJOUTEZ CETTE LIGNE
     }
 }
+      
+      
+      
+      // ==============================================
+// GESTION DES DÉPENSES PAR PRODUCTION
+// ==============================================
+
+// Variables globales
+let currentProductionForExpenses = null;
+let expensesData = [];
+let existingExpenses = {};
+
+// Initialiser la page des dépenses
+function initExpensesPage() {
+    console.log('Initialisation page dépenses...');
+    
+    // Charger la liste des productions
+    loadProductionsForExpenses();
+    
+    // Événement de sélection de production
+    document.getElementById('selectProductionExpenses').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        
+        if (selectedOption.value) {
+            currentProductionForExpenses = JSON.parse(selectedOption.dataset.production);
+            loadProductionDetailsForExpenses();
+            loadExistingExpensesForProduction();
+        } else {
+            document.getElementById('revenueSection').style.display = 'none';
+            document.getElementById('expensesTableSection').style.display = 'none';
+            currentProductionForExpenses = null;
+        }
+    });
+    
+    // Bouton ajouter une ligne
+    document.getElementById('addExpenseRowBtn').addEventListener('click', addExpenseRow);
+    
+    // Calcul automatique du CA
+    document.getElementById('productionRevenue').addEventListener('input', calculateNetProfit);
+    
+    // Sauvegarder les dépenses
+    document.getElementById('saveExpensesBtn').addEventListener('click', saveProductionExpenses);
+    
+    // Annuler
+    document.getElementById('cancelExpensesBtn').addEventListener('click', function() {
+        resetExpensesForm();
+    });
+    
+    // Imprimer
+    document.getElementById('printExpensesBtn').addEventListener('click', printExpensesReport);
+    
+    // Charger la liste existante
+    loadExistingExpensesList();
+}
+
+// Charger les productions pour les dépenses
+function loadProductionsForExpenses() {
+    const select = document.getElementById('selectProductionExpenses');
+    select.innerHTML = '<option value="">-- Choisir une production --</option>';
+    
+    db.collection('poulailler_records')
+        .orderBy('startDate', 'desc')
+        .limit(50)
+        .get()
+        .then(snapshot => {
+            snapshot.forEach(doc => {
+                const production = doc.data();
+                const date = new Date(production.startDate);
+                const dateStr = `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`;
+                
+                const option = document.createElement('option');
+                option.value = doc.id;
+                option.textContent = `Production du ${dateStr} - ${production.initialStock || 0} poulets`;
+                option.dataset.production = JSON.stringify({
+                    id: doc.id,
+                    data: production
+                });
+                
+                select.appendChild(option);
+            });
+        });
+}
+
+// Charger les détails de la production sélectionnée
+function loadProductionDetailsForExpenses() {
+    if (!currentProductionForExpenses) return;
+    
+    const production = currentProductionForExpenses.data;
+    const date = new Date(production.startDate);
+    const dateStr = `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`;
+    
+    // Afficher les infos
+    document.getElementById('productionInfoExpenses').innerHTML = `
+        <strong>Production du ${dateStr}</strong><br>
+        Stock initial: ${production.initialStock || 0} poulets<br>
+        Dates: ${formatDate(production.startDate)} ${production.endDate ? ' - ' + formatDate(production.endDate) : ''}
+    `;
+    
+    // Calculer le CA initial (valeur estimée des ventes)
+    const revenue = calculateProductionRevenue(production);
+    
+    // Afficher la section CA
+    document.getElementById('revenueSection').style.display = 'block';
+    document.getElementById('productionRevenue').value = revenue;
+    
+    // Afficher le tableau des dépenses
+    document.getElementById('expensesTableSection').style.display = 'block';
+    
+    // Initialiser le tableau avec une ligne vide
+    expensesData = [];
+    addExpenseRow();
+}
+
+// Calculer le revenu de la production
+function calculateProductionRevenue(production) {
+    // Ventes par catégorie × prix
+    const revenue = (production.small1Sold || 0) * (production.small1Price || 0) +
+                   (production.small2Sold || 0) * (production.small2Price || 0) +
+                   (production.medium1Sold || 0) * (production.medium1Price || 0) +
+                   (production.medium2Sold || 0) * (production.medium2Price || 0) +
+                   (production.large1Sold || 0) * (production.large1Price || 0) +
+                   (production.large2Sold || 0) * (production.large2Price || 0) +
+                   (production.xlarge1Sold || 0) * (production.xlarge1Price || 0) +
+                   (production.xlarge2Sold || 0) * (production.xlarge2Price || 0);
+    
+    return revenue;
+}
+
+// Ajouter une ligne de dépense
+function addExpenseRow() {
+    const tbody = document.getElementById('expensesTableBody');
+    const rowId = Date.now(); // ID unique
+    
+    const row = document.createElement('tr');
+    row.id = `expenseRow-${rowId}`;
+    row.innerHTML = `
+        <td>
+            <input type="text" class="expense-name form-input-small" 
+                   placeholder="Ex: Nourriture" 
+                   onchange="updateExpenseRow('${rowId}')">
+        </td>
+        <td>
+            <input type="text" class="expense-description form-input-small" 
+                   placeholder="Ex: Achat aliment poulets" 
+                   onchange="updateExpenseRow('${rowId}')">
+        </td>
+        <td>
+            <input type="number" class="expense-quantity form-input-small" 
+                   min="0" value="1" step="1"
+                   onchange="updateExpenseRow('${rowId}')">
+        </td>
+        <td>
+            <input type="number" class="expense-unit-price form-input-small" 
+                   min="0" value="0" step="100"
+                   onchange="updateExpenseRow('${rowId}')">
+        </td>
+        <td>
+            <div class="expense-total" style="padding: 8px; text-align: right; font-weight: bold;">
+                0 F CFA
+            </div>
+        </td>
+        <td>
+            <button class="action-btn-small delete" onclick="removeExpenseRow('${rowId}')">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(row);
+    
+    // Ajouter aux données
+    expensesData.push({
+        id: rowId,
+        name: '',
+        description: '',
+        quantity: 1,
+        unitPrice: 0,
+        total: 0
+    });
+    
+    // Calculer les totaux
+    calculateExpensesTotals();
+}
+
+// Mettre à jour une ligne de dépense
+function updateExpenseRow(rowId) {
+    const row = document.getElementById(`expenseRow-${rowId}`);
+    const index = expensesData.findIndex(exp => exp.id == rowId);
+    
+    if (index === -1) return;
+    
+    // Récupérer les valeurs
+    const name = row.querySelector('.expense-name').value;
+    const description = row.querySelector('.expense-description').value;
+    const quantity = parseInt(row.querySelector('.expense-quantity').value) || 0;
+    const unitPrice = parseInt(row.querySelector('.expense-unit-price').value) || 0;
+    const total = quantity * unitPrice;
+    
+    // Mettre à jour les données
+    expensesData[index] = {
+        ...expensesData[index],
+        name,
+        description,
+        quantity,
+        unitPrice,
+        total
+    };
+    
+    // Mettre à jour l'affichage du total
+    row.querySelector('.expense-total').textContent = `${total.toLocaleString('fr-FR')} F CFA`;
+    
+    // Calculer les totaux
+    calculateExpensesTotals();
+}
+
+// Supprimer une ligne de dépense
+function removeExpenseRow(rowId) {
+    // Supprimer de l'interface
+    const row = document.getElementById(`expenseRow-${rowId}`);
+    if (row) row.remove();
+    
+    // Supprimer des données
+    expensesData = expensesData.filter(exp => exp.id != rowId);
+    
+    // Calculer les totaux
+    calculateExpensesTotals();
+}
+
+// Calculer les totaux des dépenses
+function calculateExpensesTotals() {
+    let totalQuantity = 0;
+    let totalAmount = 0;
+    
+    expensesData.forEach(expense => {
+        totalQuantity += expense.quantity || 0;
+        totalAmount += expense.total || 0;
+    });
+    
+    // Mettre à jour l'affichage
+    document.getElementById('totalQuantity').textContent = totalQuantity;
+    document.getElementById('totalExpensesAmount').textContent = `${totalAmount.toLocaleString('fr-FR')} F CFA`;
+    document.getElementById('totalExpensesDisplay').textContent = `${totalAmount.toLocaleString('fr-FR')} F CFA`;
+    
+    // Calculer le bénéfice net
+    calculateNetProfit();
+}
+
+// Calculer le bénéfice net
+function calculateNetProfit() {
+    const revenue = parseInt(document.getElementById('productionRevenue').value) || 0;
+    const totalExpenses = expensesData.reduce((sum, exp) => sum + (exp.total || 0), 0);
+    const netProfit = revenue - totalExpenses;
+    
+    // Mettre à jour l'affichage
+    document.getElementById('netProfitDisplay').textContent = `${netProfit.toLocaleString('fr-FR')} F CFA`;
+    
+    // Changer la couleur selon le résultat
+    const netProfitDisplay = document.getElementById('netProfitDisplay');
+    if (netProfit > 0) {
+        netProfitDisplay.style.background = '#f0fdf4';
+        netProfitDisplay.style.color = '#059669';
+    } else if (netProfit < 0) {
+        netProfitDisplay.style.background = '#fef2f2';
+        netProfitDisplay.style.color = '#dc2626';
+    } else {
+        netProfitDisplay.style.background = '#f8fafc';
+        netProfitDisplay.style.color = '#475569';
+    }
+    
+    // Afficher/masquer le bouton imprimer
+    document.getElementById('printExpensesBtn').style.display = 
+        (revenue > 0 || totalExpenses > 0) ? 'inline-block' : 'none';
+}
+
+// Charger les dépenses existantes pour cette production
+function loadExistingExpensesForProduction() {
+    if (!currentProductionForExpenses) return;
+    
+    const productionId = currentProductionForExpenses.id;
+    
+    db.collection('production_expenses')
+        .where('productionId', '==', productionId)
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get()
+        .then(snapshot => {
+            if (!snapshot.empty) {
+                const doc = snapshot.docs[0];
+                const data = doc.data();
+                
+                // Remplir les données
+                document.getElementById('productionRevenue').value = data.revenue || 0;
+                
+                // Vider le tableau actuel
+                expensesData = [];
+                document.getElementById('expensesTableBody').innerHTML = '';
+                
+                // Ajouter les lignes de dépenses
+                if (data.expenses && Array.isArray(data.expenses)) {
+                    data.expenses.forEach(expense => {
+                        const rowId = Date.now() + Math.random();
+                        
+                        expensesData.push({
+                            id: rowId,
+                            name: expense.name || '',
+                            description: expense.description || '',
+                            quantity: expense.quantity || 0,
+                            unitPrice: expense.unitPrice || 0,
+                            total: expense.total || 0
+                        });
+                        
+                        // Ajouter la ligne dans l'interface
+                        const tbody = document.getElementById('expensesTableBody');
+                        const row = document.createElement('tr');
+                        row.id = `expenseRow-${rowId}`;
+                        row.innerHTML = `
+                            <td>
+                                <input type="text" class="expense-name form-input-small" 
+                                       value="${expense.name || ''}" 
+                                       onchange="updateExpenseRow('${rowId}')">
+                            </td>
+                            <td>
+                                <input type="text" class="expense-description form-input-small" 
+                                       value="${expense.description || ''}" 
+                                       onchange="updateExpenseRow('${rowId}')">
+                            </td>
+                            <td>
+                                <input type="number" class="expense-quantity form-input-small" 
+                                       min="0" value="${expense.quantity || 0}" step="1"
+                                       onchange="updateExpenseRow('${rowId}')">
+                            </td>
+                            <td>
+                                <input type="number" class="expense-unit-price form-input-small" 
+                                       min="0" value="${expense.unitPrice || 0}" step="100"
+                                       onchange="updateExpenseRow('${rowId}')">
+                            </td>
+                            <td>
+                                <div class="expense-total" style="padding: 8px; text-align: right; font-weight: bold;">
+                                    ${(expense.total || 0).toLocaleString('fr-FR')} F CFA
+                                </div>
+                            </td>
+                            <td>
+                                <button class="action-btn-small delete" onclick="removeExpenseRow('${rowId}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        `;
+                        
+                        tbody.appendChild(row);
+                    });
+                }
+                
+                // Calculer les totaux
+                calculateExpensesTotals();
+                
+                showMessage('Dépenses précédentes chargées', 'success');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur chargement dépenses:', error);
+        });
+}
+
+// Sauvegarder les dépenses de production
+async function saveProductionExpenses() {
+    if (!currentProductionForExpenses) {
+        showMessage('Veuillez d\'abord sélectionner une production', 'error');
+        return;
+    }
+    
+    const productionId = currentProductionForExpenses.id;
+    const revenue = parseInt(document.getElementById('productionRevenue').value) || 0;
+    const totalExpenses = expensesData.reduce((sum, exp) => sum + (exp.total || 0), 0);
+    
+    // Filtrer les dépenses vides
+    const validExpenses = expensesData.filter(exp => 
+        exp.name && exp.name.trim() !== '' && exp.total > 0
+    );
+    
+    if (validExpenses.length === 0 && totalExpenses === 0) {
+        showMessage('Veuillez ajouter au moins une dépense', 'error');
+        return;
+    }
+    
+    showMessage('Enregistrement en cours...', 'warning');
+    
+    try {
+        const expenseData = {
+            productionId: productionId,
+            productionDate: currentProductionForExpenses.data.startDate,
+            revenue: revenue,
+            expenses: validExpenses.map(exp => ({
+                name: exp.name,
+                description: exp.description,
+                quantity: exp.quantity,
+                unitPrice: exp.unitPrice,
+                total: exp.total
+            })),
+            totalExpenses: totalExpenses,
+            netProfit: revenue - totalExpenses,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        // Vérifier si une dépense existe déjà pour cette production
+        const existingQuery = await db.collection('production_expenses')
+            .where('productionId', '==', productionId)
+            .limit(1)
+            .get();
+        
+        if (!existingQuery.empty) {
+            // Mettre à jour l'existant
+            const docId = existingQuery.docs[0].id;
+            await db.collection('production_expenses').doc(docId).update(expenseData);
+            console.log('Dépenses mises à jour:', docId);
+        } else {
+            // Créer nouveau
+            const docRef = await db.collection('production_expenses').add(expenseData);
+            console.log('Dépenses créées:', docRef.id);
+        }
+        
+        showMessage('✅ Dépenses enregistrées avec succès!', 'success');
+        
+        // Recharger la liste existante
+        loadExistingExpensesList();
+        
+        // Afficher le bouton imprimer
+        document.getElementById('printExpensesBtn').style.display = 'inline-block';
+        
+    } catch (error) {
+        console.error('Erreur sauvegarde:', error);
+        showMessage('❌ Erreur lors de l\'enregistrement: ' + error.message, 'error');
+    }
+}
+
+// Charger la liste des productions avec dépenses existantes
+function loadExistingExpensesList() {
+    db.collection('production_expenses')
+        .orderBy('productionDate', 'desc')
+        .limit(20)
+        .get()
+        .then(snapshot => {
+            const tbody = document.getElementById('existingExpensesTableBody');
+            tbody.innerHTML = '';
+            
+            if (snapshot.empty) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 40px; color: var(--gray-text);">
+                            <i class="fas fa-inbox" style="font-size: 2rem; margin-bottom: 15px; display: block;"></i>
+                            Aucune dépense enregistrée
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const productionDate = new Date(data.productionDate);
+                const dateStr = formatDate(productionDate);
+                
+                // Récupérer les infos de la production
+                let stockInitial = 'N/A';
+                
+                db.collection('poulailler_records').doc(data.productionId).get()
+                    .then(prodDoc => {
+                        if (prodDoc.exists) {
+                            const prodData = prodDoc.data();
+                            stockInitial = prodData.initialStock || 0;
+                            
+                            // Mettre à jour l'affichage
+                            const stockCell = document.getElementById(`stock-${doc.id}`);
+                            if (stockCell) stockCell.textContent = stockInitial;
+                        }
+                    });
+                
+                const netProfit = data.netProfit || 0;
+                const profitColor = netProfit > 0 ? '#059669' : '#dc2626';
+                const profitBg = netProfit > 0 ? '#f0fdf4' : '#fef2f2';
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${dateStr}</td>
+                    <td id="stock-${doc.id}">Chargement...</td>
+                    <td style="font-weight: bold; color: #dc2626;">${(data.totalExpenses || 0).toLocaleString('fr-FR')} F CFA</td>
+                    <td style="font-weight: bold; color: #3b82f6;">${(data.revenue || 0).toLocaleString('fr-FR')} F CFA</td>
+                    <td style="background: ${profitBg}; color: ${profitColor}; font-weight: bold;">
+                        ${netProfit.toLocaleString('fr-FR')} F CFA
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="action-btn-small view" onclick="viewExpenseDetails('${doc.id}')" title="Voir">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="action-btn-small edit" onclick="editExpense('${doc.id}')" title="Modifier">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="action-btn-small delete" onclick="deleteExpense('${doc.id}')" title="Supprimer">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+            
+        }).catch(error => {
+            console.error('Erreur chargement liste:', error);
+        });
+}
+
+// Voir les détails d'une dépense
+function viewExpenseDetails(expenseId) {
+    db.collection('production_expenses').doc(expenseId).get()
+        .then(doc => {
+            if (!doc.exists) return;
+            
+            const data = doc.data();
+            
+            let content = `
+                <div style="max-width: 800px;">
+                    <h3 style="margin-bottom: 20px; color: var(--dark-text);">
+                        <i class="fas fa-file-invoice-dollar"></i> Détails des Dépenses
+                    </h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                        <div style="background: #f0f9ff; padding: 15px; border-radius: 10px;">
+                            <h4 style="margin-bottom: 10px; color: #0369a1;">Chiffre d'Affaires</h4>
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #3b82f6;">
+                                ${(data.revenue || 0).toLocaleString('fr-FR')} F CFA
+                            </div>
+                        </div>
+                        
+                        <div style="background: #fef2f2; padding: 15px; border-radius: 10px;">
+                            <h4 style="margin-bottom: 10px; color: #dc2626;">Total Dépenses</h4>
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #dc2626;">
+                                ${(data.totalExpenses || 0).toLocaleString('fr-FR')} F CFA
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: ${data.netProfit > 0 ? '#f0fdf4' : '#fef2f2'}; 
+                         padding: 20px; border-radius: 10px; margin-bottom: 30px; text-align: center;">
+                        <h4 style="margin-bottom: 10px; color: ${data.netProfit > 0 ? '#059669' : '#dc2626'};">Bénéfice Net</h4>
+                        <div style="font-size: 2rem; font-weight: bold; color: ${data.netProfit > 0 ? '#059669' : '#dc2626'};">
+                            ${(data.netProfit || 0).toLocaleString('fr-FR')} F CFA
+                        </div>
+                    </div>
+                    
+                    <h4 style="margin-bottom: 15px;">Détail des Dépenses</h4>
+            `;
+            
+            if (data.expenses && data.expenses.length > 0) {
+                content += `
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                        <thead>
+                            <tr style="background: var(--light-gray);">
+                                <th style="padding: 10px; text-align: left;">Nom</th>
+                                <th style="padding: 10px; text-align: left;">Description</th>
+                                <th style="padding: 10px; text-align: center;">Quantité</th>
+                                <th style="padding: 10px; text-align: right;">Prix Unitaire</th>
+                                <th style="padding: 10px; text-align: right;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                data.expenses.forEach(expense => {
+                    content += `
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 10px;">${expense.name || ''}</td>
+                            <td style="padding: 10px;">${expense.description || ''}</td>
+                            <td style="padding: 10px; text-align: center;">${expense.quantity || 0}</td>
+                            <td style="padding: 10px; text-align: right;">${(expense.unitPrice || 0).toLocaleString('fr-FR')} F CFA</td>
+                            <td style="padding: 10px; text-align: right; font-weight: bold;">
+                                ${(expense.total || 0).toLocaleString('fr-FR')} F CFA
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                content += `</tbody></table>`;
+            } else {
+                content += `<p style="text-align: center; color: var(--gray-text);">Aucun détail de dépense</p>`;
+            }
+            
+            content += `</div>`;
+            
+            // Afficher dans une modal
+            const modal = document.createElement('div');
+            modal.id = 'expenseDetailsModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+                padding: 20px;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 15px; padding: 30px; width: 100%; max-width: 900px; max-height: 80vh; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="margin: 0; color: var(--dark-text);">Détails des Dépenses</h3>
+                        <button onclick="document.getElementById('expenseDetailsModal').remove()"
+                                style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--gray-text);">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    ${content}
+                    <div style="margin-top: 20px; text-align: center;">
+                        <button onclick="printExpenseDetails('${doc.id}')" 
+                                style="background: var(--primary); color: white; border: none; padding: 10px 30px; border-radius: 8px; cursor: pointer; margin-right: 10px;">
+                            <i class="fas fa-print"></i> Imprimer
+                        </button>
+                        <button onclick="document.getElementById('expenseDetailsModal').remove()"
+                                style="background: var(--light-gray); color: var(--dark-text); border: none; padding: 10px 30px; border-radius: 8px; cursor: pointer;">
+                            Fermer
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+        }).catch(error => {
+            console.error('Erreur:', error);
+            showMessage('Erreur de chargement', 'error');
+        });
+}
+
+// Modifier une dépense existante
+function editExpense(expenseId) {
+    db.collection('production_expenses').doc(expenseId).get()
+        .then(doc => {
+            if (!doc.exists) return;
+            
+            const data = doc.data();
+            
+            // Charger la production correspondante
+            db.collection('poulailler_records').doc(data.productionId).get()
+                .then(prodDoc => {
+                    if (!prodDoc.exists) return;
+                    
+                    const prodData = prodDoc.data();
+                    
+                    // Sélectionner cette production dans la liste
+                    const select = document.getElementById('selectProductionExpenses');
+                    for (let i = 0; i < select.options.length; i++) {
+                        if (select.options[i].value === data.productionId) {
+                            select.selectedIndex = i;
+                            
+                            // Déclencher l'événement change
+                            const event = new Event('change');
+                            select.dispatchEvent(event);
+                            
+                            // Remplir les données après un court délai
+                            setTimeout(() => {
+                                document.getElementById('productionRevenue').value = data.revenue || 0;
+                                
+                                // Vider et remplir les dépenses
+                                expensesData = [];
+                                document.getElementById('expensesTableBody').innerHTML = '';
+                                
+                                if (data.expenses && Array.isArray(data.expenses)) {
+                                    data.expenses.forEach(expense => {
+                                        addExpenseRow();
+                                        
+                                        // Remplir la dernière ligne ajoutée
+                                        const lastRow = document.querySelector('#expensesTableBody tr:last-child');
+                                        if (lastRow) {
+                                            lastRow.querySelector('.expense-name').value = expense.name || '';
+                                            lastRow.querySelector('.expense-description').value = expense.description || '';
+                                            lastRow.querySelector('.expense-quantity').value = expense.quantity || 0;
+                                            lastRow.querySelector('.expense-unit-price').value = expense.unitPrice || 0;
+                                            
+                                            // Déclencher le calcul
+                                            const rowId = lastRow.id.replace('expenseRow-', '');
+                                            updateExpenseRow(rowId);
+                                        }
+                                    });
+                                }
+                                
+                                showMessage('Dépenses chargées pour modification', 'success');
+                            }, 500);
+                            
+                            break;
+                        }
+                    }
+                    
+                });
+            
+        }).catch(error => {
+            console.error('Erreur:', error);
+            showMessage('Erreur de chargement', 'error');
+        });
+}
+
+ 
       // Développer par AHMED SAID IDDA AIDARA
     </script>
 </body>
