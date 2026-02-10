@@ -792,45 +792,93 @@ async function syncStockWithSales(stockAttribueId, boutiqueId) {
         }
         
         // Configuration des événements
-    function setupEventListeners() {
-    // Bouton de connexion
+  // Configuration des événements (VERSION PROPRE)
+function setupEventListeners() {
+    console.log("🔄 Configuration propre des événements");
+    
+    // NETTOYER TOUT
+    const cleanElement = (id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            const clone = el.cloneNode(true);
+            el.parentNode.replaceChild(clone, el);
+            return document.getElementById(id);
+        }
+        return null;
+    };
+    
+    // Nettoyer tous les boutons
+    cleanElement('loginBtn');
+    cleanElement('selectProductionBtn');
+    cleanElement('historyBtn');
+    cleanElement('statsBtn');
+    cleanElement('backBtn');
+    cleanElement('saveBtn');
+    cleanElement('generateBtn');
+    
+    // ÉVÉNEMENTS DE CONNEXION
     document.getElementById('loginBtn').addEventListener('click', handleLogin);
     
-    // CORRECTION ICI : Bouton pour nouvelle facture (sélection production)
+    // ÉVÉNEMENTS PRINCIPAUX
     document.getElementById('selectProductionBtn').addEventListener('click', selectProductionForInvoice);
+    document.getElementById('historyBtn').addEventListener('click', showBoutiqueHistory);
+    document.getElementById('statsBtn').addEventListener('click', showBoutiqueStats);
     
-    // Bouton historique
-    document.getElementById('historyBtn').addEventListener('click', function() {
-        showBoutiqueHistory();
-    });
-    
-    // Bouton statistiques
-    document.getElementById('statsBtn').addEventListener('click', function() {
-        showBoutiqueStats();
-    });
-    
-    // Bouton retour la page facturation)
+    // BOUTON RETOUR (simple)
     document.getElementById('backBtn').addEventListener('click', function() {
+        document.querySelectorAll('#stockInfo').forEach(p => p.remove());
+        currentInvoice = {
+            id: null,
+            boutique: currentBoutique.id,
+            boutiqueName: currentBoutique.name,
+            boutiquePhone: currentBoutique.phone,
+            productionId: '',
+            stockAttribueId: '',
+            client: {},
+            items: [],
+            total: 0,
+            date: new Date()
+        };
         document.getElementById('invoicePage').style.display = 'none';
         document.getElementById('mainInterface').style.display = 'block';
     });
     
-      // Bouton enregistrer facture (avec débogage)
-document.getElementById('saveBtn').addEventListener('click', async function() {
-    console.log("=== 🚀 DÉBUT ENREGISTREMENT ===");
+    // ============ BOUTON ENREGISTRER (VERSION SÛRE) ============
+    const saveBtn = document.getElementById('saveBtn');
+    let saveLock = false;
     
-    // Vérifier les données avant
-    await checkFirebaseData();
+    saveBtn.addEventListener('click', async function saveHandler() {
+        console.log("🎯 Clic sur Enregistrer");
+        
+        if (saveLock) {
+            console.log("🔒 Déjà en cours, ignoré");
+            return;
+        }
+        
+        saveLock = true;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
+        
+        try {
+            // Appeler la fonct ion originale
+            await saveInvoice();
+        } catch (error) {
+            console.error("Erreur:", error);
+        } finally {
+            // Réactiver a près 5 secondes
+            setTimeout(() => {
+                saveLock = false;
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Enregistrer';
+                console.log("🔓 Bouton réactivé");
+            }, 5000);
+        }
+    });
     
-    // Lancer l'enregistrement
-    await saveInvoice();
-});
-      
-    // Bouton enregistrer facture
-    document.getElementById('saveBtn').addEventListener('click', saveInvoice);
-    
-    // Bouton générer PDF
+    // BOUTON PDF
     document.getElementById('generateBtn').addEventListener('click', generatePDF);
+    
+    console.log("✅ Événements configurés");
 }
         // AJOUTEZ cette fonction APRÈS setupEventListeners() :
 
@@ -3133,7 +3181,7 @@ async function showAttributedStock(stockAttribue, production) {
     
     stockHTML += `</div>`;
     
-    // Résumé avec calcul RÉEL
+    // Résu mé avec calcul RÉEL
     stockHTML += `
         <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 8px; border: 1px solid ${currentBoutique.id === 'sacre-coeur' ? '#3b82f6' : '#10b981'}; display: flex; justify-content: space-between; align-items: center;">
             <div style="font-weight: bold; color: #333;">
