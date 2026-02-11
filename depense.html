@@ -524,6 +524,49 @@
                 width: 100%;
             }
         }
+      
+      /* Boutons d'action dans l'historique */
+.history-actions {
+    display: flex;
+    gap: 8px;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+}
+
+.action-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: white;
+}
+
+.action-icon.edit {
+    background: #F59E0B;
+}
+
+.action-icon.delete {
+    background: #EF4444;
+}
+
+.action-icon.view {
+    background: #3B82F6;
+}
+
+.action-icon.print {
+    background: #8B5CF6;
+}
+
+.action-icon:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 10px rgba(0,0,0,0.1);
+}
     </style>
 </head>
 <body>
@@ -1030,45 +1073,32 @@ async function selectProduction(productionId) {
         // ==============================================
         // GESTION DES DÉPENSES
         // ==============================================
-        function loadExpensesForProduction(productionId) {
-            db.collection('production_expenses')
-                .where('productionId', '==', productionId)
-                .orderBy('createdAt', 'desc')
-                .limit(1)
-                .get()
-                .then(snapshot => {
-                    if (!snapshot.empty) {
-                        const expenseDoc = snapshot.docs[0];
-                        const expenseData = expenseDoc.data();
-                        currentExpenses = expenseData.expenses || [];
-                        nextRowId = currentExpenses.length + 1;
-                        
-                        // Charger le CA modifié si existant
-                        if (expenseData.modifiedCA) {
-                            currentCA = expenseData.modifiedCA;
-                            document.getElementById('caInput').value = currentCA;
-                        }
-                    } else {
-                        // Pas de dépenses, créer une ligne vide par défaut
-                        currentExpenses = [{
-                            id: 1,
-                            nom: '',
-                            description: '',
-                            quantite: 0,
-                            prixUnitaire: 0,
-                            total: 0
-                        }];
-                        nextRowId = 2;
-                    }
-                    
-                    displayExpenses();
-                    calculateTotals();
-                })
-                .catch(error => {
-                    console.error("Erreur chargement dépenses:", error);
-                    showMessage("Erreur de chargement des dépenses", "error");
-                    
-                    // Ligne par défaut
+      // ==============================================
+// CHARGER LES DÉPENSES D'UNE PRODUCTION
+// ==============================================
+function loadExpensesForProduction(productionId) {
+    console.log(`📂 Chargement des dépenses pour production: ${productionId}`);
+    
+    db.collection('production_expenses')
+        .where('productionId', '==', productionId)
+        .orderBy('createdAt', 'desc')
+        .limit(1)  // Prendre la version la plus récente
+        .get()
+        .then(snapshot => {
+            if (!snapshot.empty) {
+                const expenseDoc = snapshot.docs[0];
+                const expenseData = expenseDoc.data();
+                
+                // Charger les dépenses existantes
+                if (expenseData.expenses && expenseData.expenses.length > 0) {
+                    console.log(`✅ ${expenseData.expenses.length} dépenses trouvées`);
+                    currentExpenses = expenseData.expenses.map((exp, index) => ({
+                        ...exp,
+                        id: index + 1
+                    }));
+                    nextRowId = currentExpenses.length + 1;
+                } else {
+                    // Pas de dépenses
                     currentExpenses = [{
                         id: 1,
                         nom: '',
@@ -1078,9 +1108,59 @@ async function selectProduction(productionId) {
                         total: 0
                     }];
                     nextRowId = 2;
-                    displayExpenses();
-                });
-        }
+                }
+                
+                // Charger le CA modifié si existant
+                if (expenseData.modifiedCA) {
+                    currentCA = expenseData.modifiedCA;
+                    document.getElementById('caInput').value = currentCA;
+                    
+                    // Verrouiller le CA
+                    if (!caLocked) {
+                        toggleCALock();
+                    }
+                }
+            } else {
+                // Aucune dépense enregistrée
+                console.log("📭 Aucune dépense trouvée");
+                currentExpenses = [{
+                    id: 1,
+                    nom: '',
+                    description: '',
+                    quantite: 0,
+                    prixUnitaire: 0,
+                    total: 0
+                }];
+                nextRowId = 2;
+                
+                // Réinitialiser le CA
+                document.getElementById('caInput').value = currentCA;
+                document.getElementById('caInput').disabled = false;
+                caLocked = false;
+                document.getElementById('updateCALockBtn').innerHTML = '<i class="fas fa-lock-open"></i>';
+            }
+            
+            // Afficher les dépenses
+            displayExpenses();
+            calculateTotals();
+        })
+        .catch(error => {
+            console.error("❌ Erreur chargement dépenses:", error);
+            showMessage("Erreur de chargement des dépenses", "error");
+            
+            // Ligne par défaut
+            currentExpenses = [{
+                id: 1,
+                nom: '',
+                description: '',
+                quantite: 0,
+                prixUnitaire: 0,
+                total: 0
+            }];
+            nextRowId = 2;
+            displayExpenses();
+        });
+}
          
         function displayExpenses() {
             const tbody = document.getElementById('expensesTableBody');
@@ -1243,167 +1323,262 @@ async function selectProduction(productionId) {
         // ==============================================
         // SAUVEGARDE DES DÉPENSES
         // ==============================================
-        function saveExpenses() {
-            if (!currentProduction) {
-                showMessage('Aucune production sélectionnée', 'error');
-                return;
-            }
+     function saveExpenses() {
+    if (!currentProduction) {
+        showMessage('Aucune production sélectionnée', 'error');
+        return;
+    }
+    
+    const validExpenses = currentExpenses.filter(e => 
+        e.nom && e.nom.trim() !== '' && e.total > 0
+    );
+    
+    if (validExpenses.length === 0) {
+        showMessage('Ajoutez au moins une dépense valide', 'error');
+        return;
+    }
+    
+    const caValue = parseFloat(document.getElementById('caInput').value) || 0;
+    
+    const expenseData = {
+        productionId: currentProduction.id,
+        productionDate: currentProduction.startDate,
+        date: new Date().toISOString(),
+        expenses: validExpenses,
+        totalExpenses: validExpenses.reduce((sum, e) => sum + (e.total || 0), 0),
+        originalCA: currentCA,
+        modifiedCA: caValue,
+        beneficeNet: caValue - validExpenses.reduce((sum, e) => sum + (e.total || 0), 0),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    
+    showMessage('Enregistrement en cours...', 'warning');
+    
+    // 🔥 ÉTAPE 1: SUPPRIMER TOUS LES ANCIENS DOCUMENTS
+    db.collection('production_expenses')
+        .where('productionId', '==', currentProduction.id)
+        .get()
+        .then(snapshot => {
+            const batch = db.batch();
+            snapshot.forEach(doc => {
+                batch.delete(doc.ref);
+                console.log(`🗑️ Suppression de l'ancien document: ${doc.id}`);
+            });
+            return batch.commit();
+        })
+        // 🔥 ÉTAPE 2: CRÉER LE NOUVEAU DOCUMENT
+        .then(() => {
+            expenseData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            return db.collection('production_expenses').add(expenseData);
+        })
+        .then(() => {
+            showMessage('✓ Dépenses enregistrées (ancien supprimé)', 'success');
             
-            // Filtrer les lignes vides
-            const validExpenses = currentExpenses.filter(e => 
-                e.nom && e.nom.trim() !== '' && e.total > 0
-            );
+            const badge = document.getElementById(`badge-${currentProduction.id}`);
+            if (badge) badge.style.display = 'inline-block';
             
-            if (validExpenses.length === 0) {
-                showMessage('Ajoutez au moins une dépense valide', 'error');
-                return;
-            }
+            const card = document.querySelector(`.production-card[data-id="${currentProduction.id}"]`);
+            if (card) card.classList.add('has-expenses');
             
-            const caValue = parseFloat(document.getElementById('caInput').value) || 0;
-            
-            const expenseData = {
-                productionId: currentProduction.id,
-                productionDate: currentProduction.startDate,
-                date: new Date().toISOString(),
-                expenses: validExpenses,
-                totalExpenses: validExpenses.reduce((sum, e) => sum + (e.total || 0), 0),
-                originalCA: currentCA,
-                modifiedCA: caValue,
-                beneficeNet: caValue - validExpenses.reduce((sum, e) => sum + (e.total || 0), 0),
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            
-            showMessage('Enregistrement en cours...', 'warning');
-            
-            db.collection('production_expenses').add(expenseData)
-                .then(() => {
-                    showMessage('✓ Dépenses enregistrées avec succès!', 'success');
-                    
-                    // Mettre à jour le badge
-                    const badge = document.getElementById(`badge-${currentProduction.id}`);
-                    if (badge) {
-                        badge.style.display = 'inline-block';
-                    }
-                    
-                    const card = document.querySelector(`.production-card[data-id="${currentProduction.id}"]`);
-                    if (card) {
-                        card.classList.add('has-expenses');
-                    }
-                    
-                    // Recharger l'historique
-                    loadExpensesHistory();
-                })
-                .catch(error => {
-                    console.error("Erreur sauvegarde:", error);
-                    showMessage('Erreur: ' + error.message, 'error');
-                });
-        }
-        
+            loadExpensesHistory();
+            currentCA = caValue;
+        })
+        .catch(error => {
+            console.error("❌ Erreur:", error);
+            showMessage('Erreur: ' + error.message, 'error');
+        });
+}
+         
         // ==============================================
         // HISTORIQUE DES DÉPENSES
         // ==============================================
-        function loadExpensesHistory() {
-            const historyList = document.getElementById('historyList');
+      
+      // ==============================================
+// RÉINITIALISER LE FORMULAIRE DE DÉPENSES
+// ==============================================
+function resetExpensesForm() {
+    if (confirm('Réinitialiser le formulaire ? Toutes les modifications non enregistrées seront perdues.')) {
+        currentExpenses = [{
+            id: 1,
+            nom: '',
+            description: '',
+            quantite: 0,
+            prixUnitaire: 0,
+            total: 0
+        }];
+        nextRowId = 2;
+        
+        // Réinitialiser le CA
+        document.getElementById('caInput').value = currentCA;
+        document.getElementById('caInput').disabled = false;
+        caLocked = false;
+        document.getElementById('updateCALockBtn').innerHTML = '<i class="fas fa-lock-open"></i>';
+        document.getElementById('updateCALockBtn').classList.remove('btn-primary');
+        document.getElementById('updateCALockBtn').classList.add('btn-outline');
+        
+        displayExpenses();
+        calculateTotals();
+        
+        showMessage('Formulaire réinitialisé', 'warning');
+    }
+}
+     // ==============================================
+// HISTORIQUE DES DÉPENSES
+// ==============================================
+function loadExpensesHistory() {
+    const historyList = document.getElementById('historyList');
+    
+    db.collection('production_expenses')
+        .orderBy('date', 'desc')
+        .limit(20)
+        .get()
+        .then(snapshot => {
+            if (snapshot.empty) {
+                historyList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-receipt"></i>
+                        <h3>Aucune dépense enregistrée</h3>
+                        <p>Sélectionnez une production et ajoutez des dépenses</p>
+                    </div>
+                `;
+                return;
+            }
             
-            db.collection('production_expenses')
-                .orderBy('date', 'desc')
-                .limit(20)
-                .get()
-                .then(snapshot => {
-                    if (snapshot.empty) {
-                        historyList.innerHTML = `
-                            <div class="empty-state">
-                                <i class="fas fa-receipt"></i>
-                                <h3>Aucune dépense enregistrée</h3>
-                                <p>Sélectionnez une production et ajoutez des dépenses</p>
+            let html = '<div style="display: flex; flex-direction: column; gap: 15px;">';
+            
+            snapshot.forEach(doc => {
+                const expense = doc.data();
+                const docId = doc.id;
+                const date = new Date(expense.date || expense.createdAt?.seconds * 1000);
+                const dateStr = `${date.getDate().toString().padStart(2,'0')}/${(date.getMonth()+1).toString().padStart(2,'0')}/${date.getFullYear()}`;
+                const production = allProductions.find(p => p.id === expense.productionId);
+                const productionDate = production ? formatDateShort(production.startDate) : formatDateShort(expense.productionDate);
+                
+                html += `
+                    <div style="background: #F8FAFC; padding: 20px; border-radius: 16px; border-left: 5px solid #3B82F6; position: relative;">
+                        <!-- En-tête avec boutons d'action -->
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                            <div>
+                                <strong style="font-size: 1.1rem;">
+                                    <i class="fas fa-calendar-alt" style="color: #3B82F6;"></i>
+                                    Production du ${productionDate}
+                                </strong>
+                                <span style="margin-left: 15px; background: #3B82F6; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem;">
+                                    ${expense.expenses.length} dépense(s)
+                                </span>
                             </div>
-                        `;
-                        return;
-                    }
-                    
-                    let html = '<div style="display: flex; flex-direction: column; gap: 15px;">';
-                    
-                    snapshot.forEach(doc => {
-                        const expense = doc.data();
-                        const date = new Date(expense.date || expense.createdAt?.seconds * 1000);
-                        const dateStr = `${date.getDate().toString().padStart(2,'0')}/${(date.getMonth()+1).toString().padStart(2,'0')}/${date.getFullYear()}`;
-                        
-                        html += `
-                            <div style="background: #F8FAFC; padding: 20px; border-radius: 16px; border-left: 5px solid #3B82F6;">
-                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
-                                    <div>
-                                        <strong style="font-size: 1.1rem;">
-                                            <i class="fas fa-calendar-alt" style="color: #3B82F6;"></i>
-                                            Production du ${formatDateShort(expense.productionDate)}
-                                        </strong>
-                                        <span style="margin-left: 15px; background: #3B82F6; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem;">
-                                            ${expense.expenses.length} dépense(s)
-                                        </span>
-                                    </div>
-                                    <div style="display: flex; gap: 10px;">
-                                        <button onclick="viewExpenseDetails('${doc.id}')" class="btn btn-sm btn-outline">
-                                            <i class="fas fa-eye"></i> Détails
-                                        </button>
-                                        <button onclick="printExpenseReport('${doc.id}')" class="btn btn-sm btn-outline">
-                                            <i class="fas fa-print"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 10px;">
-                                    <div>
-                                        <span style="color: #64748B;">Total dépenses</span><br>
-                                        <strong style="font-size: 1.2rem; color: #EF4444;">${expense.totalExpenses?.toLocaleString('fr-FR')} F CFA</strong>
-                                    </div>
-                                    <div>
-                                        <span style="color: #64748B;">Chiffre d'affaires</span><br>
-                                        <strong style="font-size: 1.2rem; color: #3B82F6;">${(expense.modifiedCA || expense.originalCA || 0).toLocaleString('fr-FR')} F CFA</strong>
-                                        ${expense.modifiedCA ? '<span style="font-size: 0.75rem; color: #F59E0B; margin-left: 5px;">(modifié)</span>' : ''}
-                                    </div>
-                                    <div>
-                                        <span style="color: #64748B;">Bénéfice net</span><br>
-                                        <strong style="font-size: 1.2rem; color: ${expense.beneficeNet >= 0 ? '#10B981' : '#EF4444'};">
-                                            ${expense.beneficeNet?.toLocaleString('fr-FR')} F CFA
-                                        </strong>
-                                    </div>
-                                </div>
-                                <div style="margin-top: 10px; font-size: 0.85rem; color: #64748B;">
-                                    <i class="fas fa-clock"></i> Enregistré le ${dateStr}
-                                </div>
+                            
+                            <!-- ICÔNES DE MODIFICATION ET SUPPRESSION -->
+                            <div style="display: flex; gap: 8px;">
+                                <!-- Icône Modifier -->
+                                <button onclick="editExpenseRecord('${docId}')" 
+                                        style="background: #F59E0B; color: white; border: none; width: 36px; height: 36px; 
+                                               border-radius: 8px; cursor: pointer; display: flex; align-items: center; 
+                                               justify-content: center; transition: all 0.2s ease;"
+                                        title="Modifier cette dépense"
+                                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 10px rgba(0,0,0,0.1)';"
+                                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                
+                                <!-- Icône Supprimer -->
+                                <button onclick="deleteExpenseRecord('${docId}')" 
+                                        style="background: #EF4444; color: white; border: none; width: 36px; height: 36px; 
+                                               border-radius: 8px; cursor: pointer; display: flex; align-items: center; 
+                                               justify-content: center; transition: all 0.2s ease;"
+                                        title="Supprimer cette dépense"
+                                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 10px rgba(0,0,0,0.1)';"
+                                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                                
+                                <!-- Icône Détails (existant) -->
+                                <button onclick="viewExpenseDetails('${docId}')" 
+                                        style="background: #3B82F6; color: white; border: none; width: 36px; height: 36px; 
+                                               border-radius: 8px; cursor: pointer; display: flex; align-items: center; 
+                                               justify-content: center; transition: all 0.2s ease;"
+                                        title="Voir les détails"
+                                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 10px rgba(0,0,0,0.1)';"
+                                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                
+                                <!-- Icône Imprimer (existant) -->
+                                <button onclick="printExpenseReport('${docId}')" 
+                                        style="background: #8B5CF6; color: white; border: none; width: 36px; height: 36px; 
+                                               border-radius: 8px; cursor: pointer; display: flex; align-items: center; 
+                                               justify-content: center; transition: all 0.2s ease;"
+                                        title="Imprimer le rapport"
+                                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 10px rgba(0,0,0,0.1)';"
+                                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                                    <i class="fas fa-print"></i>
+                                </button>
                             </div>
-                        `;
-                    });
-                    
-                    html += '</div>';
-                    historyList.innerHTML = html;
-                    
-                    // Remplir le filtre
-                    const filter = document.getElementById('historyFilter');
-                    filter.innerHTML = '<option value="all">Toutes les productions</option>';
-                    
-                    const uniqueProductions = [...new Set(snapshot.docs.map(doc => doc.data().productionId))];
-                    uniqueProductions.forEach(prodId => {
-                        const production = allProductions.find(p => p.id === prodId);
-                        if (production) {
-                            const date = new Date(production.startDate);
-                            const dateStr = `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`;
-                            const option = document.createElement('option');
-                            option.value = prodId;
-                            option.textContent = `Production du ${dateStr}`;
-                            filter.appendChild(option);
-                        }
-                    });
-                })
-                .catch(error => {
-                    console.error("Erreur chargement historique:", error);
-                    historyList.innerHTML = `
-                        <div class="empty-state">
-                            <i class="fas fa-exclamation-triangle" style="color: #EF4444;"></i>
-                            <h3>Erreur de chargement</h3>
-                            <p>${error.message}</p>
                         </div>
-                    `;
-                });
-        }
+                        
+                        <!-- Statistiques -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 10px;">
+                            <div>
+                                <span style="color: #64748B;">Total dépenses</span><br>
+                                <strong style="font-size: 1.2rem; color: #EF4444;">${expense.totalExpenses?.toLocaleString('fr-FR')} F CFA</strong>
+                            </div>
+                            <div>
+                                <span style="color: #64748B;">Chiffre d'affaires</span><br>
+                                <strong style="font-size: 1.2rem; color: #3B82F6;">${(expense.modifiedCA || expense.originalCA || 0).toLocaleString('fr-FR')} F CFA</strong>
+                                ${expense.modifiedCA ? '<span style="font-size: 0.75rem; color: #F59E0B; margin-left: 5px;">(modifié)</span>' : ''}
+                            </div>
+                            <div>
+                                <span style="color: #64748B;">Bénéfice net</span><br>
+                                <strong style="font-size: 1.2rem; color: ${expense.beneficeNet >= 0 ? '#10B981' : '#EF4444'};">
+                                    ${expense.beneficeNet?.toLocaleString('fr-FR')} F CFA
+                                </strong>
+                            </div>
+                        </div>
+                        
+                        <!-- Date d'enregistrement -->
+                        <div style="margin-top: 15px; font-size: 0.85rem; color: #64748B; display: flex; justify-content: space-between; align-items: center;">
+                            <span>
+                                <i class="fas fa-clock"></i> Enregistré le ${dateStr}
+                            </span>
+                            <span style="font-size: 0.8rem; color: #94A3B8;">
+                                ID: ${docId.substring(0, 8)}...
+                            </span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            historyList.innerHTML = html;
+            
+            // Remplir le filtre
+            const filter = document.getElementById('historyFilter');
+            filter.innerHTML = '<option value="all">Toutes les productions</option>';
+            
+            const uniqueProductions = [...new Set(snapshot.docs.map(doc => doc.data().productionId))];
+            uniqueProductions.forEach(prodId => {
+                const production = allProductions.find(p => p.id === prodId);
+                if (production) {
+                    const date = new Date(production.startDate);
+                    const dateStr = `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`;
+                    const option = document.createElement('option');
+                    option.value = prodId;
+                    option.textContent = `Production du ${dateStr}`;
+                    filter.appendChild(option);
+                }
+            });
+        })
+        .catch(error => {
+            console.error("Erreur chargement historique:", error);
+            historyList.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle" style="color: #EF4444;"></i>
+                    <h3>Erreur de chargement</h3>
+                    <p>${error.message}</p>
+                </div>
+            `;
+        });
+}
         
         function viewExpenseDetails(docId) {
             db.collection('production_expenses').doc(docId).get()
@@ -1602,6 +1777,129 @@ async function selectProduction(productionId) {
             document.getElementById(modalId).classList.remove('active');
         }
         
+      
+// ==============================================
+// MODIFIER UN ENREGISTREMENT DE DÉPENSES
+// ==============================================
+function editExpenseRecord(docId) {
+    console.log(`✏️ Modification de l'enregistrement: ${docId}`);
+    
+    showMessage('Chargement des dépenses pour modification...', 'warning');
+    
+    db.collection('production_expenses').doc(docId).get()
+        .then(doc => {
+            if (!doc.exists) {
+                showMessage('Enregistrement non trouvé', 'error');
+                return;
+            }
+            
+            const expenseData = doc.data();
+            const productionId = expenseData.productionId;
+            
+            // 1. Sélectionner la production
+            selectProduction(productionId);
+            
+            // 2. Attendre que la production soit chargée, PUIS charger SES dépenses
+            setTimeout(() => {
+                // FORCER le chargement des dépenses existantes DANS LE TABLEAU
+                if (expenseData.expenses && Array.isArray(expenseData.expenses)) {
+                    console.log(`📋 Chargement de ${expenseData.expenses.length} dépenses existantes`);
+                    
+                    // Remplacer currentExpenses par les dépenses enregistrées
+                    currentExpenses = expenseData.expenses.map((exp, index) => ({
+                        ...exp,
+                        id: index + 1  // Réattribuer des IDs séquentiels
+                    }));
+                    
+                    // Mettre à jour nextRowId
+                    nextRowId = currentExpenses.length + 1;
+                    
+                    // AFFICHER les dépenses dans le tableau
+                    displayExpenses();
+                    
+                    // Mettre à jour le CA
+                    if (expenseData.modifiedCA) {
+                        currentCA = expenseData.modifiedCA;
+                        document.getElementById('caInput').value = currentCA;
+                        
+                        // Verrouiller le CA si modifié
+                        if (!caLocked) {
+                            toggleCALock();
+                        }
+                    }
+                    
+                    // Recalculer les totaux
+                    calculateTotals();
+                    
+                    showMessage('✓ Dépenses chargées - Vous pouvez maintenant modifier', 'success');
+                }
+                
+                // 3. Faire défiler jusqu'à la section dépenses
+                const expensesSection = document.getElementById('expensesSection');
+                expensesSection.scrollIntoView({ behavior: 'smooth' });
+                
+                // 4. Mettre en évidence
+                expensesSection.style.transition = 'all 0.3s ease';
+                expensesSection.style.boxShadow = '0 0 0 4px #F59E0B';
+                expensesSection.style.backgroundColor = '#fffbeb';
+                
+                setTimeout(() => {
+                    expensesSection.style.boxShadow = 'none';
+                    expensesSection.style.backgroundColor = 'transparent';
+                }, 2000);
+                
+            }, 800); // Délai plus long pour être sûr que selectProduction a fini
+        })
+        .catch(error => {
+            console.error("❌ Erreur lors du chargement:", error);
+            showMessage('Erreur: ' + error.message, 'error');
+        });
+}
+      
+      
+      // ==============================================
+// SUPPRIMER UN ENREGISTREMENT DE DÉPENSES
+// ==============================================
+function deleteExpenseRecord(docId) {
+    console.log(`🗑️ Suppression de l'enregistrement: ${docId}`);
+    
+    // Créer une modal de confirmation
+    const confirmation = confirm('Êtes-vous sûr de vouloir supprimer cet enregistrement de dépenses ?\n\nCette action est irréversible.');
+    
+    if (confirmation) {
+        showMessage('Suppression en cours...', 'warning');
+        
+        db.collection('production_expenses').doc(docId).delete()
+            .then(() => {
+                showMessage('✓ Dépenses supprimées avec succès', 'success');
+                
+                // Recharger l'historique
+                loadExpensesHistory();
+                
+                // Retirer le badge de la production si c'est sa seule dépense
+                db.collection('production_expenses')
+                    .where('productionId', '==', currentProduction?.id)
+                    .get()
+                    .then(snapshot => {
+                        if (snapshot.empty && currentProduction) {
+                            const badge = document.getElementById(`badge-${currentProduction.id}`);
+                            if (badge) {
+                                badge.style.display = 'none';
+                            }
+                            const card = document.querySelector(`.production-card[data-id="${currentProduction.id}"]`);
+                            if (card) {
+                                card.classList.remove('has-expenses');
+                            }
+                        }
+                    });
+            })
+            .catch(error => {
+                console.error("Erreur suppression:", error);
+                showMessage('Erreur: ' + error.message, 'error');
+            });
+    }
+}
+      
         // ==============================================
         // EVENT LISTENERS
         // ==============================================
@@ -1664,6 +1962,22 @@ async function selectProduction(productionId) {
                 }
             });
         }
+      
+      // ==============================================
+// RAFRAÎCHIR APRÈS MODIFICATION
+// ==============================================
+function refreshAfterEdit() {
+    // Recharger les productions pour mettre à jour les badges
+    loadProductions();
+    
+    // Recharger l'historique
+    loadExpensesHistory();
+    
+    // Si une production est sélectionnée, recharger ses dépenses
+    if (currentProduction) {
+        loadExpensesForProduction(currentProduction.id);
+    }
+}
     </script>
 </body>
 </html>
