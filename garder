@@ -533,7 +533,7 @@
             <img src="https://i.postimg.cc/0QBKNcGj/photo-5782651308169956527-x.jpg" alt="Logo" class="logo">
             <div>
                 <h1 class="title">GESTION DES DÉPENSES</h1>
-                <p class="subtitle">DAKAR CHICKEN EXPRESS • Suivi analytique par production</p>
+                <p class="subtitle">DAKAR CHICKEN EXPRESS </p>
             </div>
         </div>
         
@@ -568,7 +568,7 @@
                 </div>
                 <div>
                     <span style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px;">
-                        <i class="fas fa-chicken"></i> Stock initial: <span id="selectedProductionStock">0</span>
+                        <i class="fas fa-chicken"></i> Stock : <span id="selectedProductionStock">0</span>
                     </span>
                     <span style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; margin-left: 10px;">
                         <i class="fas fa-coins"></i> CA: <span id="selectedProductionCA">0</span> F CFA
@@ -732,6 +732,50 @@
             initEventListeners();
         });
         
+      // ==============================================
+// CALCULER LE CA RÉEL DEPUIS LES FACTURES
+// ==============================================
+async function calculateRealRevenue(productionId) {
+    console.log(`📊 Calcul du CA réel pour production: ${productionId}`);
+    
+    let totalCA = 0;
+    let totalVendus = 0;
+    
+    try {
+        // Récupérer TOUTES les factures de cette production
+        const snapshot = await db.collection('invoices')
+            .where('productionId', '==', productionId)
+            .get();
+        
+        console.log(`📈 ${snapshot.size} factures trouvées`);
+        
+        snapshot.forEach(doc => {
+            const facture = doc.data();
+            totalCA += facture.total || 0;
+            
+            // Compter les poulets vendus
+            if (facture.items && Array.isArray(facture.items)) {
+                facture.items.forEach(item => {
+                    totalVendus += item.quantity || 0;
+                });
+            }
+        });
+        
+        console.log(`💰 CA réel: ${totalCA} F CFA, Poulets vendus: ${totalVendus}`);
+        
+        return {
+            revenue: totalCA,
+            sold: totalVendus
+        };
+        
+    } catch (error) {
+        console.error("❌ Erreur calcul CA réel:", error);
+        return {
+            revenue: 0,
+            sold: 0
+        };
+    }
+}
         // ==============================================
         // CHARGEMENT DES PRODUCTIONS
         // ==============================================
@@ -787,16 +831,50 @@
             
             allProductions.forEach(production => {
                 // Calculer le stock restant
-                const initialStock = production.initialStock || 0;
-                const totalSold = (production.small1Sold || 0) + (production.small2Sold || 0) +
-                                 (production.medium1Sold || 0) + (production.medium2Sold || 0) +
-                                 (production.large1Sold || 0) + (production.large2Sold || 0) +
-                                 (production.xlarge1Sold || 0) + (production.xlarge2Sold || 0);
-                const totalLostGiven = (production.lost || 0) + (production.given || 0);
-                const stockRestant = Math.max(0, initialStock - totalSold - totalLostGiven);
-                
-                // Calculer le CA
-                const ca = (production.small1Sold || 0) * (production.small1Price || 0) +
+               // Calculer le stock restant RÉEL en interrogeant les factures
+let stockRestant = production.initialStock || 0;
+let ca = 0;
+
+// Faire une requête asynchrone pour obtenir les ventes réelles
+db.collection('invoices')
+    .where('productionId', '==', production.id)
+    .get()
+    .then(snapshot => {
+        let totalVendus = 0;
+        let totalCA = 0;
+        
+        snapshot.forEach(doc => {
+            const facture = doc.data();
+            totalCA += facture.total || 0;
+            
+            if (facture.items && Array.isArray(facture.items)) {
+                facture.items.forEach(item => {
+                    totalVendus += item.quantity || 0;
+                });
+            }
+        });
+        
+        // Mettre à jour l'affichage du stock restant
+        const stockReel = Math.max(0, (production.initialStock || 0) - totalVendus);
+        const caReel = totalCA;
+        
+        const card = document.querySelector(`.production-card[data-id="${production.id}"]`);
+        if (card) {
+            const stockElement = card.querySelector('.stat-item:nth-child(2) .stat-value');
+            const caElement = card.querySelector('.stat-item:nth-child(3) .stat-value');
+            
+            if (stockElement) stockElement.textContent = stockReel;
+            if (caElement) caElement.textContent = caReel.toLocaleString('fr-FR');
+        }
+    })
+    .catch(error => {
+        console.error("Erreur calcul stock réel:", error);
+    });
+
+// Pour l'affichage initial, on utilise les valeurs par défaut
+const initialStock = production.initialStock || 0;
+const stockRestantInitial = initialStock; // Temporaire
+const caInitial = 0; // Temporaire
                           (production.small2Sold || 0) * (production.small2Price || 0) +
                           (production.medium1Sold || 0) * (production.medium1Price || 0) +
                           (production.medium2Sold || 0) * (production.medium2Price || 0) +
@@ -813,34 +891,34 @@
                 card.dataset.id = production.id;
                 card.onclick = () => selectProduction(production.id);
                 
-                card.innerHTML = `
-                    <div class="production-date">
-                        <i class="fas fa-calendar-day" style="color: #3B82F6; margin-right: 8px;"></i>
-                        ${dateStr}
-                    </div>
-                    <div class="production-stats">
-                        <div class="stat-item">
-                            <div class="stat-label">Initial</div>
-                            <div class="stat-value">${initialStock}</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">Restant</div>
-                            <div class="stat-value">${stockRestant}</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">CA</div>
-                            <div class="stat-value">${ca.toLocaleString('fr-FR')}</div>
-                        </div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #64748B; font-size: 0.85rem;">
-                            <i class="fas fa-tag"></i> ${production.notes ? production.notes.substring(0, 30) + '...' : 'Aucune note'}
-                        </span>
-                        <span class="expense-badge" id="badge-${production.id}" style="display: none;">
-                            <i class="fas fa-coins"></i> Dépenses
-                        </span>
-                    </div>
-                `;
+               card.innerHTML = `
+    <div class="production-date">
+        <i class="fas fa-calendar-day" style="color: #3B82F6; margin-right: 8px;"></i>
+        ${dateStr}
+    </div>
+    <div class="production-stats">
+        <div class="stat-item">
+            <div class="stat-label">Initial</div>
+            <div class="stat-value">${initialStock}</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Restant</div>
+            <div class="stat-value" id="stock-${production.id}">${initialStock}</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">CA</div>
+            <div class="stat-value" id="ca-${production.id}">0</div>
+        </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: #64748B; font-size: 0.85rem;">
+            <i class="fas fa-tag"></i> ${production.notes ? production.notes.substring(0, 30) + '...' : 'Aucune note'}
+        </span>
+        <span class="expense-badge" id="badge-${production.id}" style="display: none;">
+            <i class="fas fa-coins"></i> Dépenses
+        </span>
+    </div>
+`;
                 
                 productionsList.appendChild(card);
             });
@@ -871,56 +949,83 @@
         // ==============================================
         // SÉLECTION D'UNE PRODUCTION
         // ==============================================
-        function selectProduction(productionId) {
-            // Retirer la sélection précédente
-            document.querySelectorAll('.production-card').forEach(card => {
-                card.classList.remove('selected');
-            });
+      // ==============================================
+// SÉLECTION D'UNE PRODUCTION
+// ==============================================
+async function selectProduction(productionId) {
+    // Retirer la sélection précédente
+    document.querySelectorAll('.production-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    // Ajouter la sélection à la carte cliquée
+    const selectedCard = document.querySelector(`.production-card[data-id="${productionId}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('selected');
+    }
+    
+    // Trouver la production
+    currentProduction = allProductions.find(p => p.id === productionId);
+    
+    if (currentProduction) {
+        // Afficher la section dépenses
+        document.getElementById('expensesSection').style.display = 'block';
+        
+        // Mettre à jour les infos
+        const date = new Date(currentProduction.startDate);
+        const dateStr = `${date.getDate().toString().padStart(2,'0')}/${(date.getMonth()+1).toString().padStart(2,'0')}/${date.getFullYear()}`;
+        
+        document.getElementById('selectedProductionDate').textContent = dateStr;
+        document.getElementById('selectedProductionStock').textContent = currentProduction.initialStock || 0;
+        
+        // ============ CALCUL DU CA RÉEL DEPUIS LES FACTURES ============
+        showMessage('Calcul du chiffre d\'affaires réel...', 'warning');
+        
+        try {
+            const realData = await calculateRealRevenue(productionId);
+            currentCA = realData.revenue;
             
-            // Ajouter la sélection à la carte cliquée
-            const selectedCard = document.querySelector(`.production-card[data-id="${productionId}"]`);
-            if (selectedCard) {
-                selectedCard.classList.add('selected');
-            }
+            // Calculer le stock restant réel
+            const totalVendus = realData.sold;
+            const stockInitial = currentProduction.initialStock || 0;
+            const stockRestant = Math.max(0, stockInitial - totalVendus);
             
-            // Trouver la production
-            currentProduction = allProductions.find(p => p.id === productionId);
+            // Mettre à jour l'affichage du stock restant
+            document.getElementById('selectedProductionStock').textContent = stockRestant;
             
-            if (currentProduction) {
-                // Afficher la section dépenses
-                document.getElementById('expensesSection').style.display = 'block';
-                
-                // Mettre à jour les infos
-                const date = new Date(currentProduction.startDate);
-                const dateStr = `${date.getDate().toString().padStart(2,'0')}/${(date.getMonth()+1).toString().padStart(2,'0')}/${date.getFullYear()}`;
-                
-                document.getElementById('selectedProductionDate').textContent = dateStr;
-                document.getElementById('selectedProductionStock').textContent = currentProduction.initialStock || 0;
-                
-                // Calculer le CA
-                currentCA = (currentProduction.small1Sold || 0) * (currentProduction.small1Price || 0) +
-                           (currentProduction.small2Sold || 0) * (currentProduction.small2Price || 0) +
-                           (currentProduction.medium1Sold || 0) * (currentProduction.medium1Price || 0) +
-                           (currentProduction.medium2Sold || 0) * (currentProduction.medium2Price || 0) +
-                           (currentProduction.large1Sold || 0) * (currentProduction.large1Price || 0) +
-                           (currentProduction.large2Sold || 0) * (currentProduction.large2Price || 0) +
-                           (currentProduction.xlarge1Sold || 0) * (currentProduction.xlarge1Price || 0) +
-                           (currentProduction.xlarge2Sold || 0) * (currentProduction.xlarge2Price || 0);
-                
-                document.getElementById('selectedProductionCA').textContent = currentCA.toLocaleString('fr-FR');
-                
-                // Réinitialiser le CA input
-                caLocked = false;
-                document.getElementById('caInput').value = currentCA;
-                document.getElementById('caInput').disabled = false;
-                document.getElementById('updateCALockBtn').innerHTML = '<i class="fas fa-lock-open"></i>';
-                document.getElementById('updateCALockBtn').classList.remove('btn-primary');
-                document.getElementById('updateCALockBtn').classList.add('btn-outline');
-                
-                // Charger les dépenses de cette production
-                loadExpensesForProduction(productionId);
-            }
+            // Ajouter une indication visuelle
+            const stockElement = document.querySelector('#selectedProductionStock');
+            stockElement.style.color = '#10B981';
+            stockElement.style.fontWeight = 'bold';
+            
+        } catch (error) {
+            console.error("Erreur calcul CA:", error);
+            // Fallback: utiliser le CA calculé localement
+            currentCA = (currentProduction.small1Sold || 0) * (currentProduction.small1Price || 0) +
+                       (currentProduction.small2Sold || 0) * (currentProduction.small2Price || 0) +
+                       (currentProduction.medium1Sold || 0) * (currentProduction.medium1Price || 0) +
+                       (currentProduction.medium2Sold || 0) * (currentProduction.medium2Price || 0) +
+                       (currentProduction.large1Sold || 0) * (currentProduction.large1Price || 0) +
+                       (currentProduction.large2Sold || 0) * (currentProduction.large2Price || 0) +
+                       (currentProduction.xlarge1Sold || 0) * (currentProduction.xlarge1Price || 0) +
+                       (currentProduction.xlarge2Sold || 0) * (currentProduction.xlarge2Price || 0);
         }
+        // ===============================================================
+        
+        document.getElementById('selectedProductionCA').textContent = currentCA.toLocaleString('fr-FR');
+        
+        // Réinitialiser le CA input
+        caLocked = false;
+        document.getElementById('caInput').value = currentCA;
+        document.getElementById('caInput').disabled = false;
+        document.getElementById('updateCALockBtn').innerHTML = '<i class="fas fa-lock-open"></i>';
+        document.getElementById('updateCALockBtn').classList.remove('btn-primary');
+        document.getElementById('updateCALockBtn').classList.add('btn-outline');
+        
+        // Charger les dépenses de cette production
+        loadExpensesForProduction(productionId);
+    }
+}
         
         // ==============================================
         // GESTION DES DÉPENSES
