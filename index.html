@@ -2718,7 +2718,7 @@ function showSimpleInvoiceModal(invoice, invoiceId) {
     document.body.appendChild(modalDiv);
 }
 
-// Fonction pour modifier une facture existante (VERSION SIMPLIFIÉE)
+// Fonction pour modifier une facture existante
 function editInvoice(invoiceId) {
     console.log('🔧 Modification facture:', invoiceId);
     
@@ -2729,42 +2729,34 @@ function editInvoice(invoiceId) {
     
     showMessage('Chargement de la facture...', 'warning');
     
-    // Accès direct à Firestore
+    // D'abord charger la facture
     db.collection('invoices').doc(invoiceId).get()
-        .then(doc => {
+        .then(async doc => {  // Ajoute async ici
             console.log('📄 Document récupéré:', doc.exists);
             
             if (!doc.exists) {
-                showMessage('Facture non trouvée dans la base de données', 'error');
+                showMessage('Facture non trouvée', 'error');
                 return;
             }
             
             const invoice = doc.data();
             console.log('📊 Données facture:', invoice);
             
-            // Fermer TOUTES les modales ouvertes
-            try {
-                closeModal();
-            } catch(e) { console.log('Pas de modal à fermer'); }
-            
+            // Fermer toutes les modales
+            try { closeModal(); } catch(e) {}
             const historyModal = document.getElementById('historyModal');
             if (historyModal) historyModal.remove();
             
-            const simpleModal = document.getElementById('simpleInvoiceModal');
-            if (simpleModal) simpleModal.remove();
-            
             // S'assurer que currentBoutique existe
             if (!currentBoutique && invoice.boutique) {
-                // Recréer currentBoutique à partir des données de la facture
                 currentBoutique = {
                     id: invoice.boutique,
                     name: invoice.boutiqueName || (invoice.boutique === 'sacre-coeur' ? 'SACRÉ COEUR 3' : 'KEUR MASSAR'),
                     phone: invoice.boutiquePhone || '77 777 77 77'
                 };
-                console.log('🏪 Boutique restaurée:', currentBoutique);
             }
             
-            // Stocker l'ID de la facture en cours de modification
+            // Stocker l'ID de la facture
             currentInvoice = {
                 id: invoiceId,
                 boutique: invoice.boutique || currentBoutique?.id || '',
@@ -2785,20 +2777,57 @@ function editInvoice(invoiceId) {
                 }
             };
             
-            console.log('✅ currentInvoice défini:', currentInvoice);
-            
             // Afficher la page de facturation
             document.getElementById('mainInterface').style.display = 'none';
             document.getElementById('invoicePage').style.display = 'block';
             
-            // Remplir le formulaire avec les données existantes
-            fillInvoiceFormSimple(invoice);
+            // ===== PARTIE IMPORTANTE : CHARGER LE STOCK =====
+            if (invoice.stockAttribueId) {
+                // Charger le stock attribué
+                try {
+                    const stockDoc = await db.collection('stocks_attribues').doc(invoice.stockAttribueId).get();
+                    
+                    if (stockDoc.exists) {
+                        const stockData = stockDoc.data();
+                        
+                        // Supprimer l'ancien affichage de stock
+                        const oldStock = document.getElementById('stockInfo');
+                        if (oldStock) oldStock.remove();
+                        
+                        // Afficher le stock avec showAttributedStock
+                        if (invoice.productionId) {
+                            const prodDoc = await db.collection('poulailler_records').doc(invoice.productionId).get();
+                            if (prodDoc.exists) {
+                                await showAttributedStock(stockData, prodDoc.data());
+                            } else {
+                                showAttributedStock(stockData, {});
+                            }
+                        } else {
+                            showAttributedStock(stockData, {});
+                        }
+                        
+                        // Afficher UNIQUEMENT les catégories disponibles
+                        displayAvailableCategories(stockData);
+                        
+                    } else {
+                        console.log('⚠️ Stock non trouvé, utilisation des catégories par défaut');
+                        setupCategoriesDefault();
+                    }
+                } catch (stockError) {
+                    console.error('❌ Erreur chargement stock:', stockError);
+                    setupCategoriesDefault();
+                }
+            } else {
+                console.log('⚠️ Pas de stockAttribueId, utilisation des catégories par défaut');
+                setupCategoriesDefault();
+            }
+            
+            // Remplir le formulaire avec les données de la facture
+            fillEditForm(invoice);
             
             // Afficher le bouton Annuler
             const cancelBtn = document.getElementById('cancelEditBtn');
-            if (cancelBtn) {
-                cancelBtn.style.display = 'inline-block';
-            }
+            if (cancelBtn) cancelBtn.style.display = 'inline-block';
             
             // Modifier le titre
             const header = document.querySelector('#invoicePage h2');
@@ -2806,16 +2835,61 @@ function editInvoice(invoiceId) {
                 header.innerHTML = `Modification Facture <small style="font-size: 0.8rem; color: #f59e0b;">(${invoice.invoiceNumber || ''})</small>`;
             }
             
-            showMessage('✅ Facture chargée pour modification', 'success');
+            showMessage('✅ Facture chargée', 'success');
             
         })
         .catch(error => {
-            console.error('❌ ERREUR COMPLÈTE:', error);
-            console.error('❌ Message:', error.message);
-            console.error('❌ Stack:', error.stack);
-            
+            console.error('❌ ERREUR:', error);
             showMessage('Erreur de chargement: ' + (error.message || 'problème technique'), 'error');
         });
+}
+  
+  // Fonction spéciale pour remplir le formulaire en modification
+function fillEditForm(invoice) {
+    console.log('📝 Remplissage formulaire édition:', invoice);
+    
+    // Remplir les infos client
+    document.getElementById('clientName').value = invoice.client?.name || '';
+    document.getElementById('clientPhone').value = invoice.client?.phone || '';
+    document.getElementById('clientAddress').value = invoice.client?.address || '';
+    
+    // Réinitialiser les inputs
+    document.querySelectorAll('.category-input').forEach(input => {
+        input.value = 0;
+    });
+    
+    // Remplir les quantités des articles
+    if (invoice.items && invoice.items.length > 0) {
+        invoice.items.forEach(item => {
+            const input = document.getElementById(`cat-${item.id}`);
+            if (input) {
+                input.value = item.quantity || 0;
+                console.log(`✅ Catégorie ${item.id}: ${item.quantity}`);
+            }
+        });
+    }
+    
+    // Mettre à jour le résumé
+    updateSummary();
+    
+    // Remplir les infos de paiement
+    if (invoice.paiement) {
+        const montantPayeInput = document.getElementById('montantPayeInput');
+        if (montantPayeInput) {
+            montantPayeInput.value = invoice.paiement.montantPaye || 0;
+        }
+        
+        // Sélectionner le mode de paiement
+        const modeRadios = document.querySelectorAll('input[name="modePaiement"]');
+        modeRadios.forEach(radio => {
+            if (radio.value === (invoice.paiement.modePaiement || 'especes')) {
+                radio.checked = true;
+            }
+        });
+        
+        // Mettre à jour l'affichage
+        updateStatutPaiement();
+    }
 }
 // Fonction pour fermer la modal
 function closeModal() {
@@ -4360,6 +4434,74 @@ function startStockMonitoring() {
 
 // Démarrer la surveillance quand on ouvre une facture
 // Dans openInvoicePageWithStock(), ajoute :
+  // Version simplifiée pour remplir le formulaire
+function fillInvoiceFormSimple(invoice) {
+    console.log('📝 Remplissage formulaire avec:', invoice);
+    
+    try {
+        // Remplir les informations client
+        const clientName = document.getElementById('clientName');
+        const clientPhone = document.getElementById('clientPhone');
+        const clientAddress = document.getElementById('clientAddress');
+        
+        if (clientName) clientName.value = invoice.client?.name || '';
+        if (clientPhone) clientPhone.value = invoice.client?.phone || '';
+        if (clientAddress) clientAddress.value = invoice.client?.address || '';
+        
+        // Réinitialiser tous les inputs
+        document.querySelectorAll('.category-input').forEach(input => {
+            input.value = 0;
+        });
+        
+        // Remplir les quantités des articles
+        if (invoice.items && invoice.items.length > 0) {
+            invoice.items.forEach(item => {
+                const input = document.getElementById(`cat-${item.id}`);
+                if (input) {
+                    input.value = item.quantity || 0;
+                    console.log(`✅ Catégorie ${item.id}: ${item.quantity}`);
+                } else {
+                    console.log(`⚠️ Input cat-${item.id} non trouvé`);
+                }
+            });
+        } else {
+            console.log('⚠️ Aucun article dans la facture');
+        }
+        
+        // Mettre à jour le résumé
+        updateSummary();
+        
+        // Remplir les informations de paiement
+        if (invoice.paiement) {
+            const montantPayeInput = document.getElementById('montantPayeInput');
+            if (montantPayeInput) {
+                montantPayeInput.value = invoice.paiement.montantPaye || 0;
+            }
+            
+            // Sélectionner le mode de paiement
+            const modeRadios = document.querySelectorAll('input[name="modePaiement"]');
+            modeRadios.forEach(radio => {
+                if (radio.value === (invoice.paiement.modePaiement || 'especes')) {
+                    radio.checked = true;
+                }
+            });
+            
+            // Mettre à jour l'affichage du statut
+            updateStatutPaiement();
+        } else {
+            // Pas d'info de paiement, mettre à zéro
+            const montantPayeInput = document.getElementById('montantPayeInput');
+            if (montantPayeInput) montantPayeInput.value = 0;
+            updateStatutPaiement();
+        }
+        
+        console.log('✅ Formulaire rempli avec succès');
+        
+    } catch (error) {
+        console.error('❌ Erreur remplissage formulaire:', error);
+        showMessage('Erreur lors du remplissage du formulaire', 'error');
+    }
+}
 // setTimeout(startStockMonitoring, 1000);
 // ============================================================== 
     </script>
