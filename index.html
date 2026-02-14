@@ -638,42 +638,71 @@
         
       <!-- Section Paiement -->
         <!-- Section Paiement SIMPLE -->
-        <div class="summary" style="margin-bottom: 20px; background: #fff3e0;">
-            <h3 style="margin-bottom: 15px; color: #555;">
-                <i class="fas fa-money-bill-wave"></i> Paiement
-            </h3>
-            
-            <div style="display: flex; gap: 15px; align-items: center;">
-                <div style="flex: 2;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">Montant restant à payer</label>
-                    <input type="number" id="montantResteInput" value="0" min="0" step="100"
-                           style="width: 100%; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1.2rem;">
-                </div>
-                <div style="flex: 1;">
-                    <button id="btnPayerSimple" class="btn btn-generate" 
-                            style="background: #10b981; width: 100%; justify-content: center;">
-                        <i class="fas fa-check-circle"></i> Payer
-                    </button>
-                </div>
-            </div>
-            
-            <div id="statutPaiement" style="margin-top: 15px; padding: 10px; border-radius: 8px; display: none;">
-                <!-- Le message s'affichera ici -->
-            </div>
+       <!-- Section Paiement COMPLÈTE avec mode de paiement -->
+<div class="summary" style="margin-bottom: 20px; background: #fff3e0;">
+    <h3 style="margin-bottom: 15px; color: #555;">
+        <i class="fas fa-money-bill-wave"></i> Paiement
+    </h3>
+    
+    <!-- Mode de paiement -->
+    <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Mode de paiement</label>
+        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 5px; background: white; padding: 10px 15px; border-radius: 8px; border: 2px solid #e0e0e0; cursor: pointer; flex: 1;">
+                <input type="radio" name="modePaiement" value="especes" checked> 💵 Espèces
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; background: white; padding: 10px 15px; border-radius: 8px; border: 2px solid #e0e0e0; cursor: pointer; flex: 1;">
+                <input type="radio" name="modePaiement" value="wave"> 📱 Wave
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; background: white; padding: 10px 15px; border-radius: 8px; border: 2px solid #e0e0e0; cursor: pointer; flex: 1;">
+                <input type="radio" name="modePaiement" value="orange"> 🧡 Orange Money
+            </label>
         </div>
+    </div>
+    
+    <!-- Montant payé -->
+    <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Montant reçu (F CFA)</label>
+        <input type="number" id="montantPayeInput" value="0" min="0" step="100"
+               style="width: 100%; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1.2rem;">
+    </div>
+    
+    <!-- Montant restant calculé automatiquement -->
+    <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+        <div style="display: flex; justify-content: space-between; font-weight: bold;">
+            <span>💰 Total facture:</span>
+            <span id="montantTotalCalc">0 F CFA</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; color: #10b981;">
+            <span>💵 Payé:</span>
+            <span id="montantPayeCalc">0 F CFA</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; color: #f59e0b; font-size: 1.1rem;">
+            <span>⚠️ Reste:</span>
+            <span id="montantResteCalc">0 F CFA</span>
+        </div>
+    </div>
+    
+    <!-- Boutons d'action -->
+    <div style="display: flex; gap: 10px;">
+        <button id="btnEnregistrerPaiement" class="btn btn-generate" 
+                style="background: #10b981; flex: 2; justify-content: center;">
+            <i class="fas fa-check-circle"></i> Valider le paiement
+        </button>
+        <button id="btnNonPaye" class="btn btn-save" 
+                style="background: #ef4444; flex: 1; justify-content: center;">
+            <i class="fas fa-times-circle"></i> Non payé
+        </button>
+    </div>
+    
+    <!-- Statut du paiement -->
+    <div id="statutPaiement" style="margin-top: 15px; padding: 10px; border-radius: 8px; display: none; text-align: center; font-weight: bold;">
+        <!-- Le message s'affichera ici -->
+    </div>
+</div>
 
         <!-- Actions (boutons Enregistrer et PDF) -->
-        <div class="actions">
-            <button id="saveBtn" class="btn btn-save">
-                <i class="fas fa-save"></i> Enregistrer
-            </button>
-            
-            <button id="generateBtn" class="btn btn-generate">
-                <i class="fas fa-file-pdf"></i> Générer PDF
-            </button>
-        </div>
-      
-        <!-- Actions -->
+               <!-- Actions (boutons Enregistrer et PDF) -->
         <div class="actions">
             <button id="saveBtn" class="btn btn-save">
                 <i class="fas fa-save"></i> Enregistrer
@@ -1138,18 +1167,55 @@ function debugStocks() {
         });
 } 
         // Configuration des catégories
-        function setupCategories() {
+              function setupCategories() {
             const container = document.getElementById('categoriesContainer');
             
-            categories.forEach(category => {
+            // Ne pas remplir maintenant, on attendra le chargement du stock
+            container.innerHTML = `
+                <div style="text-align: center; padding: 30px; color: #999; grid-column: 1/-1;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+                    <p>Chargement des catégories disponibles...</p>
+                </div>
+            `;
+        }
+
+        // Nouvelle fonction pour afficher UNIQUEMENT les catégories avec stock
+        function displayAvailableCategories(stockAttribue) {
+            const container = document.getElementById('categoriesContainer');
+            container.innerHTML = '';
+            
+            // Filtrer uniquement les catégories avec stock > 0
+            const categoriesAvecStock = categories.filter(cat => {
+                const stockQty = stockAttribue.categories?.[cat.id] || 0;
+                return stockQty > 0;
+            });
+            
+            if (categoriesAvecStock.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #999; grid-column: 1/-1;">
+                        <i class="fas fa-box-open" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                        <h3>Aucune catégorie disponible</h3>
+                        <p>Ce stock ne contient aucun poulet</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Afficher uniquement les catégories avec stock
+            categoriesAvecStock.forEach(category => {
+                const stockQty = stockAttribue.categories?.[category.id] || 0;
+                
                 const categoryHTML = `
-                    <div class="category-card">
+                    <div class="category-card" style="border-color: ${currentBoutique?.id === 'sacre-coeur' ? '#3B82F6' : '#10B981'};">
                         <div class="category-header">
                             <div class="category-name">${category.id}. ${category.name}</div>
                             <div class="category-price">${category.price} F CFA</div>
                         </div>
-                        <div style="color: #666; margin-bottom: 15px; font-size: 0.9rem;">
+                        <div style="color: #666; margin-bottom: 10px; font-size: 0.9rem;">
                             ${category.weight}
+                        </div>
+                        <div style="background: #f0f9ff; padding: 5px; border-radius: 5px; margin-bottom: 10px; text-align: center;">
+                            <span style="color: #0369a1; font-weight: bold;">Stock disponible: ${stockQty}</span>
                         </div>
                         <input type="number" 
                                class="category-input" 
@@ -1159,6 +1225,7 @@ function debugStocks() {
                                data-weight="${category.weight}"
                                data-price="${category.price}"
                                min="0"
+                               max="${stockQty}"
                                value="0"
                                placeholder="Quantité">
                     </div>
@@ -1345,9 +1412,12 @@ function resetInvoiceForm() {
         date: new Date()
     };
     
-    // RÉINITIALISER LE PAIEMENT
+    //  LE PAIEMENT
     resetPaiement();
-    
+        // Réinitialiser l'affichage des catégories si on a un stock
+    if (currentInvoice.stockData) {
+        displayAvailableCategories(currentInvoice.stockData);
+    }
     console.log("currentInvoice après reset:", currentInvoice);
     
     // Réinitialiser l'affichage
@@ -3413,6 +3483,8 @@ function openInvoicePageWithStock(stockAttribue, production, stockId, production
     
     // Afficher le stock
     showAttributedStock(stockAttribue, production);
+      displayAvailableCategories(stockAttribue);
+
     
     showMessage('✓ Stock chargé', 'success');
 }
