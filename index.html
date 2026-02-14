@@ -370,6 +370,150 @@
 .boutique-keur-massar .header {
     border-left: 5px solid #10B981;
 }
+      
+      /* Styles pour les boutons de paiement */
+.paiement-section {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 15px;
+    margin-bottom: 20px;
+}
+
+.paiement-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.paiement-montants {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.montant-box {
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    border: 2px solid #e0e0e0;
+}
+
+.montant-box label {
+    display: block;
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+}
+
+.montant-box .valeur {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #333;
+}
+
+.montant-box.total .valeur {
+    color: #667eea;
+}
+
+.montant-box.paye .valeur {
+    color: #10b981;
+}
+
+.montant-box.reste .valeur {
+    color: #f59e0b;
+}
+
+.paiement-input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.paiement-input {
+    flex: 1;
+    padding: 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.paiement-input:focus {
+    border-color: #667eea;
+    outline: none;
+}
+
+.paiement-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-payer {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 15px 25px;
+    border-radius: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.3s;
+}
+
+.btn-payer:hover {
+    background: #059669;
+    transform: translateY(-2px);
+}
+
+.btn-non-payer {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 15px 25px;
+    border-radius: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.3s;
+}
+
+.btn-non-payer:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+}
+
+.paiement-status {
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.status-paye {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.status-partiel {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.status-impaye {
+    background: #fee2e2;
+    color: #dc2626;
+}
     </style>
 </head>
 <body>
@@ -492,6 +636,43 @@
             </div>
         </div>
         
+      <!-- Section Paiement -->
+        <!-- Section Paiement SIMPLE -->
+        <div class="summary" style="margin-bottom: 20px; background: #fff3e0;">
+            <h3 style="margin-bottom: 15px; color: #555;">
+                <i class="fas fa-money-bill-wave"></i> Paiement
+            </h3>
+            
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <div style="flex: 2;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">Montant restant à payer</label>
+                    <input type="number" id="montantResteInput" value="0" min="0" step="100"
+                           style="width: 100%; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1.2rem;">
+                </div>
+                <div style="flex: 1;">
+                    <button id="btnPayerSimple" class="btn btn-generate" 
+                            style="background: #10b981; width: 100%; justify-content: center;">
+                        <i class="fas fa-check-circle"></i> Payer
+                    </button>
+                </div>
+            </div>
+            
+            <div id="statutPaiement" style="margin-top: 15px; padding: 10px; border-radius: 8px; display: none;">
+                <!-- Le message s'affichera ici -->
+            </div>
+        </div>
+
+        <!-- Actions (boutons Enregistrer et PDF) -->
+        <div class="actions">
+            <button id="saveBtn" class="btn btn-save">
+                <i class="fas fa-save"></i> Enregistrer
+            </button>
+            
+            <button id="generateBtn" class="btn btn-generate">
+                <i class="fas fa-file-pdf"></i> Générer PDF
+            </button>
+        </div>
+      
         <!-- Actions -->
         <div class="actions">
             <button id="saveBtn" class="btn btn-save">
@@ -537,8 +718,11 @@
         
         // Variables globales
         let currentBoutique = null;
+          let montantResteSaisi = 0;
+
         let selectedItems = {};
         let currentInvoice = {
+          
             id: null,
             client: {},
             items: [],
@@ -797,7 +981,7 @@ async function syncStockWithSales(stockAttribueId, boutiqueId) {
         // Configuration des événements
   // Configuration des événements (VERSION PROPRE)
 function setupEventListeners() {
-    console.log("🔄 Configuration propre des événements");
+    console.log(" Configuration propre des événements");
     
     // NETTOYER TOUT
     const cleanElement = (id) => {
@@ -826,7 +1010,15 @@ function setupEventListeners() {
     document.getElementById('selectProductionBtn').addEventListener('click', selectProductionForInvoice);
     document.getElementById('historyBtn').addEventListener('click', showBoutiqueHistory);
     document.getElementById('statsBtn').addEventListener('click', showBoutiqueStats);
-    
+            // Bouton Payer simple
+        document.getElementById('btnPayerSimple').addEventListener('click', function() {
+            document.getElementById('montantResteInput').value = 0;
+            updateStatutPaiement();
+            showMessage('Facture marquée comme payée', 'success');
+        });
+        
+        // Mettre à jour le statut quand on tape dans l'input
+        document.getElementById('montantResteInput').addEventListener('input', updateStatutPaiement);
     // BOUTON RETOUR (simple)
     document.getElementById('backBtn').addEventListener('click', function() {
         document.querySelectorAll('#stockInfo').forEach(p => p.remove());
@@ -880,7 +1072,33 @@ function setupEventListeners() {
     
     // BOUTON PDF
     document.getElementById('generateBtn').addEventListener('click', generatePDF);
+    // 
+
+// Bouton Payer
+document.getElementById('btnPayer').addEventListener('click', function() {
+    const montantInput = document.getElementById('montantPaiement').value;
+    const montant = parseInt(montantInput) || 0;
+    const total = parseInt(document.getElementById('totalAmount').textContent.replace(/\D/g, '')) || 0;
     
+    if (montant <= 0) {
+        showMessage('Veuillez entrer un montant valide', 'error');
+        return;
+    }
+    
+    paiementActuel.montantPaye = montant;
+    updatePaiementMontants();
+    document.getElementById('montantPaiement').value = '';
+    
+    showMessage(`Paiement de ${montant.toLocaleString('fr-FR')} F CFA enregistré`, 'success');
+});
+
+// Bouton Non payé
+document.getElementById('btnNonPayer').addEventListener('click', function() {
+    paiementActuel.montantPaye = 0;
+    updatePaiementMontants();
+    document.getElementById('montantPaiement').value = '';
+    showMessage('Facture marquée comme non payée', 'warning');
+});
     console.log("✅ Événements configurés");
 }
         // AJOUTEZ cette fonction APRÈS setupEventListeners() :
@@ -987,8 +1205,59 @@ function debugStocks() {
             
             // Mettre à jour la liste des items sélectionnés
             updateSelectedItemsList();
+          // Mettre à jour les montants de paiement
+updatePaiementMontants();
         }
         
+  // Variables globales pour le paiement
+let paiementActuel = {
+    montantPaye: 0,
+    statut: 'impaye' // 'impaye', 'partiel', 'paye'
+};
+
+// Mettre à jour les montants de paiement
+function updatePaiementMontants() {
+    const total = parseInt(document.getElementById('totalAmount').textContent.replace(/\D/g, '')) || 0;
+    
+    document.getElementById('montantTotal').textContent = total.toLocaleString('fr-FR') + ' F CFA';
+    document.getElementById('montantPaye').textContent = paiementActuel.montantPaye.toLocaleString('fr-FR') + ' F CFA';
+    
+    const reste = Math.max(0, total - paiementActuel.montantPaye);
+    document.getElementById('montantReste').textContent = reste.toLocaleString('fr-FR') + ' F CFA';
+    
+    // Mettre à jour le statut
+    updatePaiementStatus(total, paiementActuel.montantPaye);
+}
+
+// Mettre à jour le statut du paiement
+function updatePaiementStatus(total, paye) {
+    const statusDiv = document.getElementById('paiementStatus');
+    
+    if (paye === 0) {
+        paiementActuel.statut = 'impaye';
+        statusDiv.className = 'paiement-status status-impaye';
+        statusDiv.innerHTML = '<i class="fas fa-times-circle"></i> Non payé';
+    } else if (paye >= total) {
+        paiementActuel.statut = 'paye';
+        statusDiv.className = 'paiement-status status-paye';
+        statusDiv.innerHTML = '<i class="fas fa-check-circle"></i> Payé intégralement';
+    } else {
+        paiementActuel.statut = 'partiel';
+        statusDiv.className = 'paiement-status status-partiel';
+        statusDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Paiement partiel';
+    }
+}
+
+// Réinitialiser le paiement
+function resetPaiement() {
+    paiementActuel = {
+        montantPaye: 0,
+        statut: 'impaye'
+    };
+    updatePaiementMontants();
+    document.getElementById('montantPaiement').value = '';
+}
+  
         // Mettre à jour la liste des items sélectionnés
         function updateSelectedItemsList() {
             const container = document.getElementById('selectedItems');
@@ -1025,6 +1294,23 @@ function debugStocks() {
             container.innerHTML = itemsHTML;
         }
         
+          // Mettre à jour l'affichage du statut de paiement
+        function updateStatutPaiement() {
+            const reste = parseInt(document.getElementById('montantResteInput').value) || 0;
+            const statutDiv = document.getElementById('statutPaiement');
+            
+            if (reste === 0) {
+                statutDiv.style.display = 'block';
+                statutDiv.style.background = '#d1fae5';
+                statutDiv.style.color = '#065f46';
+                statutDiv.innerHTML = '<i class="fas fa-check-circle"></i> ✅ Payé intégralement';
+            } else if (reste > 0) {
+                statutDiv.style.display = 'block';
+                statutDiv.style.background = '#fee2e2';
+                statutDiv.style.color = '#991b1b';
+                statutDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ⚠ Reste à payer: ${reste.toLocaleString('fr-FR')} F CFA`;
+            }
+        }
         // Réinitialiser le formulaire de facture
   // Réinitialiser le formulaire de facture
 function resetInvoiceForm() {
@@ -1040,18 +1326,17 @@ function resetInvoiceForm() {
         input.value = 0;
     });
     
-    // Réinitialiser les variables MAIS GARDER le stockId et productionId
+    // Réinitialiser les variables
     selectedItems = {};
     
     // NE PAS réinitialiser stockAttribueId et productionId
-    // Ils doivent rester pour l'enregistrement
     currentInvoice = {
         id: null,
         boutique: currentBoutique.id,
         boutiqueName: currentBoutique.name,
         boutiquePhone: currentBoutique.phone,
-        productionId: currentInvoice.productionId || '', // Garder si existe
-        stockAttribueId: currentInvoice.stockAttribueId || '', // Garder si existe
+        productionId: currentInvoice.productionId || '',
+        stockAttribueId: currentInvoice.stockAttribueId || '',
         productionData: currentInvoice.productionData || null,
         stockData: currentInvoice.stockData || null,
         client: {},
@@ -1060,11 +1345,17 @@ function resetInvoiceForm() {
         date: new Date()
     };
     
+    // RÉINITIALISER LE PAIEMENT
+    resetPaiement();
+    
     console.log("currentInvoice après reset:", currentInvoice);
     
     // Réinitialiser l'affichage
     document.getElementById('totalAmount').textContent = '0 F CFA';
     updateSelectedItemsList();
+          // Réinitialiser le paiement
+        document.getElementById('montantResteInput').value = '0';
+        document.getElementById('statutPaiement').style.display = 'none';
 }
         
 async function saveInvoice() {
@@ -1075,11 +1366,6 @@ async function saveInvoice() {
         showMessage('Veuillez sélectionner au moins un poulet', 'error');
         return;
     }
-    
-    // VÉRIFICATION SIMPLIFIÉE
-    console.log('Début enregistrement...');
-    console.log('currentInvoice:', currentInvoice);
-    console.log('selectedItems:', selectedItems);
     
     // VÉRIFICATION DES QUANTITÉS PAR CATÉGORIE
     let erreurStock = false;
@@ -1093,7 +1379,7 @@ async function saveInvoice() {
             return;
         }
         
-        const max = parseInt(input.max) || 9999; // Valeur élevée si pas de limite
+        const max = parseInt(input.max) || 9999;
         if (item.quantity > max) {
             erreurMessage = `Vous ne pouvez pas vendre ${item.quantity} ${item.name}, maximum: ${max}`;
             erreurStock = true;
@@ -1108,67 +1394,77 @@ async function saveInvoice() {
     showMessage('Enregistrement en cours...', 'warning');
     
     try {
-      // ==================== ENREGISTRER LA FACTURE SEULEMENT ====================
-const invoiceNumber = generateInvoiceNumber();
-const totalAmount = Object.values(selectedItems).reduce((sum, item) => sum + (item.quantity * item.price), 0);
-
-const invoiceData = {
-    boutique: currentBoutique.id,
-    boutiqueName: currentBoutique.name,
-    boutiquePhone: currentBoutique.phone,
-    productionId: currentInvoice.productionId || '',
-    stockAttribueId: currentInvoice.stockAttribueId,
-    client: {
-        name: clientName || 'Client non renseigné',
-        phone: clientPhone || 'Non renseigné',
-        address: document.getElementById('clientAddress').value.trim() || 'Non renseigné'
-    },
-    items: Object.values(selectedItems).map(item => ({
-        id: item.id.toString(),
-        name: item.name,
-        weight: item.weight,
-        price: item.price,
-        quantity: item.quantity,
-        subtotal: item.quantity * item.price
-    })),
-    total: totalAmount,
-    date: firebase.firestore.FieldValue.serverTimestamp(),
-    invoiceNumber: invoiceNumber,
-    status: 'completed',
-    createdAt: new Date().toISOString()
-};
-
-console.log("💾 Enregistrement facture seulement");
-const invoiceRef = await db.collection('invoices').add(invoiceData);
-console.log("✅ Facture enregistrée ID:", invoiceRef.id);
-
-// NE PAS METTRE À JOUR LE STOCK ICI - on calcule depuis l'historique
-showMessage('✅ Facture enregistrée !', 'success');
-
-// Rafraîchir l'affichage avec les nouvelles données
-setTimeout(async () => {
-    // Recharger les données et recalculer
-    const stockDoc = await db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId).get();
-    if (stockDoc.exists) {
-        const old = document.getElementById('stockInfo');
-        if (old) old.remove();
+        // Générer le numéro de facture
+        const invoiceNumber = generateInvoiceNumber();
+        const totalAmount = Object.values(selectedItems).reduce((sum, item) => sum + (item.quantity * item.price), 0);
         
-        const prodDoc = await db.collection('poulailler_records').doc(currentInvoice.productionId).get();
-        const prodData = prodDoc.exists ? prodDoc.data() : null;
+        // Préparer les données de paiement
+               // Données de paiement simples
+        const resteSaisi = parseInt(document.getElementById('montantResteInput').value) || 0;
+        const paiementData = {
+            resteAPayer: resteSaisi,
+            estPaye: (resteSaisi === 0)
+        };
         
-        await showAttributedStock(stockDoc.data(), prodData);
-    }
-    
-    // Générer PDF
-    generatePDF();
-}, 1000);
+        // Données de la facture
+        const invoiceData = {
+            boutique: currentBoutique.id,
+            boutiqueName: currentBoutique.name,
+            boutiquePhone: currentBoutique.phone,
+            productionId: currentInvoice.productionId || '',
+            stockAttribueId: currentInvoice.stockAttribueId,
+            client: {
+                name: clientName || 'Client non renseigné',
+                phone: clientPhone || 'Non renseigné',
+                address: document.getElementById('clientAddress').value.trim() || 'Non renseigné'
+            },
+            items: Object.values(selectedItems).map(item => ({
+                id: item.id.toString(),
+                name: item.name,
+                weight: item.weight,
+                price: item.price,
+                quantity: item.quantity,
+                subtotal: item.quantity * item.price
+            })),
+            total: totalAmount,
+            paiement: paiementData, // AJOUT DES INFORMATIONS DE PAIEMENT
+            date: firebase.firestore.FieldValue.serverTimestamp(),
+            invoiceNumber: invoiceNumber,
+            status: 'completed',
+            createdAt: new Date().toISOString()
+        };
+        
+        console.log("💾 Enregistrement facture avec paiement:", paiementData);
+        const invoiceRef = await db.collection('invoices').add(invoiceData);
+        console.log("✅ Facture enregistrée ID:", invoiceRef.id);
+        
+        showMessage('✅ Facture enregistrée !', 'success');
+        
+        // Rafraîchir l'affichage
+        setTimeout(async () => {
+            const stockDoc = await db.collection('stocks_attribues').doc(currentInvoice.stockAttribueId).get();
+            if (stockDoc.exists) {
+                const old = document.getElementById('stockInfo');
+                if (old) old.remove();
+                
+                const prodDoc = await db.collection('poulailler_records').doc(currentInvoice.productionId).get();
+                const prodData = prodDoc.exists ? prodDoc.data() : null;
+                
+                await showAttributedStock(stockDoc.data(), prodData);
+            }
+            
+            // Générer PDF
+            generatePDF();
+            
+            // Réinitialiser le paiement
+            resetPaiement();
+        }, 1000);
         
     } catch (error) {
         console.error('❌ ERREUR COMPLÈTE:', error);
         showMessage(`Erreur: ${error.message || 'Problème technique'}`, 'error');
     }
 }
-
   // Vérifier l'état des données Firebase
 async function checkFirebaseData() {
     console.log("=== 🔍 VÉRIFICATION FIREBASE ===");
@@ -1562,6 +1858,34 @@ function getSoldFieldForCategory(categoryId) {
             
             currentY += 20;
             
+            // Informations de paiement
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("PAIEMENT", margin, currentY);
+        currentY += 10;
+        
+        doc.setDrawColor(200, 200, 200);
+        doc.line(margin, currentY, pageWidth - margin, currentY);
+        currentY += 10;
+        
+        doc.setFontSize(10);
+        const reste = invoice.paiement?.resteAPayer || 0;
+        
+        if (reste === 0) {
+            doc.setTextColor(16, 185, 129); // Vert
+            doc.text("✓ PAYÉ INTÉGRALEMENT", margin, currentY);
+        } else {
+            doc.setTextColor(245, 158, 11); // Orange
+            doc.text(`⚠ RESTE À PAYER: ${reste.toLocaleString('fr-FR')} F CFA`, margin, currentY);
+        }
+        
+        // Réinitialiser la couleur
+        doc.setTextColor(0, 0, 0);
+        currentY += 15;
+        
+        doc.setDrawColor(200, 200, 200);
+        doc.line(margin, currentY, pageWidth - margin, currentY);
+        currentY += 15;  
             // SIGNATURE
             doc.setFontSize(10);
             doc.setFont("helvetica", "normal");
@@ -2166,7 +2490,29 @@ function showSimpleInvoiceModal(invoice, invoiceId) {
             </div>
         </div>
     `;
+    // Informations de paiement (à ajouter après l'affichage des articles)
+let paiementHTML = '';
+if (invoice.paiement) {
+    const statutTexte = invoice.paiement.statut === 'paye' ? 'Payé intégralement' : 
+                        invoice.paiement.statut === 'partiel' ? 'Paiement partiel' : 'Non payé';
     
+    paiementHTML = `
+        <div style="margin-top: 15px; padding: 10px; background: ${invoice.paiement.statut === 'paye' ? '#d1fae5' : invoice.paiement.statut === 'partiel' ? '#fef3c7' : '#fee2e2'}; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span><strong>Montant payé:</strong></span>
+                <span>${(invoice.paiement.montantPaye || 0).toLocaleString('fr-FR')} F CFA</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span><strong>Reste à payer:</strong></span>
+                <span>${(invoice.paiement.resteAPayer || invoice.total).toLocaleString('fr-FR')} F CFA</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-weight: bold; color: ${invoice.paiement.statut === 'paye' ? '#059669' : invoice.paiement.statut === 'partiel' ? '#d97706' : '#dc2626'};">
+                <span>Statut:</span>
+                <span>${statutTexte}</span>
+            </div>
+        </div>
+    `;
+}
     // Ajouter au body
     const modalDiv = document.createElement('div');
     modalDiv.id = 'simpleInvoiceModal';
