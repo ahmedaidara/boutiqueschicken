@@ -581,7 +581,9 @@
         <button id="backBtn" class="back-btn">
             <i class="fas fa-arrow-left"></i> Retour
         </button>
-        
+        <button id="cancelEditBtn" class="back-btn" style="background: #ef4444; color: white; display: none;">
+                <i class="fas fa-times"></i> Annuler modification
+            </button>
         <h2 style="margin-bottom: 20px; color: #333;">Nouvelle Facture</h2>
         
         <!-- Informations client -->
@@ -649,13 +651,13 @@
         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Mode de paiement</label>
         <div style="display: flex; gap: 15px; flex-wrap: wrap;">
             <label style="display: flex; align-items: center; gap: 5px; background: white; padding: 10px 15px; border-radius: 8px; border: 2px solid #e0e0e0; cursor: pointer; flex: 1;">
-                <input type="radio" name="modePaiement" value="especes" checked> 💵 Espèces
+                <input type="radio" name="modePaiement" value="especes" checked>  Espèces
             </label>
             <label style="display: flex; align-items: center; gap: 5px; background: white; padding: 10px 15px; border-radius: 8px; border: 2px solid #e0e0e0; cursor: pointer; flex: 1;">
-                <input type="radio" name="modePaiement" value="wave"> 📱 Wave
+                <input type="radio" name="modePaiement" value="wave">  Wave
             </label>
             <label style="display: flex; align-items: center; gap: 5px; background: white; padding: 10px 15px; border-radius: 8px; border: 2px solid #e0e0e0; cursor: pointer; flex: 1;">
-                <input type="radio" name="modePaiement" value="orange"> 🧡 Orange Money
+                <input type="radio" name="modePaiement" value="orange">  Orange Money
             </label>
         </div>
     </div>
@@ -670,15 +672,15 @@
     <!-- Montant restant calculé automatiquement -->
     <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
         <div style="display: flex; justify-content: space-between; font-weight: bold;">
-            <span>💰 Total facture:</span>
+            <span> Total facture:</span>
             <span id="montantTotalCalc">0 F CFA</span>
         </div>
         <div style="display: flex; justify-content: space-between; color: #10b981;">
-            <span>💵 Payé:</span>
+            <span> Payé:</span>
             <span id="montantPayeCalc">0 F CFA</span>
         </div>
         <div style="display: flex; justify-content: space-between; color: #f59e0b; font-size: 1.1rem;">
-            <span>⚠️ Reste:</span>
+            <span>⚠ Reste:</span>
             <span id="montantResteCalc">0 F CFA</span>
         </div>
     </div>
@@ -747,7 +749,11 @@
         
         // Variables globales
         let currentBoutique = null;
-          let montantResteSaisi = 0;
+         let montantResteSaisi = 0;
+// AJOUTER CES 3 LIGNES
+let modePaiementActuel = 'especes';
+let montantPayeActuel = 0;
+let statutPaiementDetaille = 'impaye';  
 
         let selectedItems = {};
         let currentInvoice = {
@@ -1008,7 +1014,6 @@ async function syncStockWithSales(stockAttribueId, boutiqueId) {
         }
         
         // Configuration des événements
-  // Configuration des événements (VERSION PROPRE)
 function setupEventListeners() {
     console.log(" Configuration propre des événements");
     
@@ -1039,23 +1044,15 @@ function setupEventListeners() {
     document.getElementById('selectProductionBtn').addEventListener('click', selectProductionForInvoice);
     document.getElementById('historyBtn').addEventListener('click', showBoutiqueHistory);
     document.getElementById('statsBtn').addEventListener('click', showBoutiqueStats);
-            // Bouton Payer simple
-        document.getElementById('btnPayerSimple').addEventListener('click', function() {
-            document.getElementById('montantResteInput').value = 0;
-            updateStatutPaiement();
-            showMessage('Facture marquée comme payée', 'success');
-        });
-        
-        // Mettre à jour le statut quand on tape dans l'input
-        document.getElementById('montantResteInput').addEventListener('input', updateStatutPaiement);
-    // BOUTON RETOUR (simple)
+    
+    // BOUTON RETOUR
     document.getElementById('backBtn').addEventListener('click', function() {
         document.querySelectorAll('#stockInfo').forEach(p => p.remove());
         currentInvoice = {
             id: null,
-            boutique: currentBoutique.id,
-            boutiqueName: currentBoutique.name,
-            boutiquePhone: currentBoutique.phone,
+            boutique: currentBoutique?.id || '',
+            boutiqueName: currentBoutique?.name || '',
+            boutiquePhone: currentBoutique?.phone || '',
             productionId: '',
             stockAttribueId: '',
             client: {},
@@ -1067,7 +1064,20 @@ function setupEventListeners() {
         document.getElementById('mainInterface').style.display = 'block';
     });
     
-    // ============ BOUTON ENREGISTRER (VERSION SÛRE) ============
+      // Bouton Annuler modification
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    if (cancelEditBtn) {
+        cancelEditBtn.addEventListener('click', function() {
+            if (confirm('Annuler la modification ? Les changements non enregistrés seront perdus.')) {
+                currentInvoice.id = null;
+                cancelEditBtn.style.display = 'none';
+                resetInvoiceForm();
+                document.querySelector('#invoicePage h2').innerHTML = 'Nouvelle Facture';
+                showMessage('Modification annulée', 'warning');
+            }
+        });
+    }
+    // BOUTON ENREGISTRER
     const saveBtn = document.getElementById('saveBtn');
     let saveLock = false;
     
@@ -1084,12 +1094,10 @@ function setupEventListeners() {
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
         
         try {
-            // Appeler la fonct ion originale
             await saveInvoice();
         } catch (error) {
             console.error("Erreur:", error);
         } finally {
-            // Réactiver a près 5 secondes
             setTimeout(() => {
                 saveLock = false;
                 saveBtn.disabled = false;
@@ -1101,34 +1109,43 @@ function setupEventListeners() {
     
     // BOUTON PDF
     document.getElementById('generateBtn').addEventListener('click', generatePDF);
-    // 
-
-// Bouton Payer
-document.getElementById('btnPayer').addEventListener('click', function() {
-    const montantInput = document.getElementById('montantPaiement').value;
-    const montant = parseInt(montantInput) || 0;
-    const total = parseInt(document.getElementById('totalAmount').textContent.replace(/\D/g, '')) || 0;
     
-    if (montant <= 0) {
-        showMessage('Veuillez entrer un montant valide', 'error');
-        return;
+    // ===== NOUVEAUX ÉVÉNEMENTS POUR LA SECTION PAIEMENT =====
+    
+    // 1. Événement sur l'input du montant reçu
+    const montantPayeInput = document.getElementById('montantPayeInput');
+    if (montantPayeInput) {
+        montantPayeInput.addEventListener('input', updateStatutPaiement);
     }
     
-    paiementActuel.montantPaye = montant;
-    updatePaiementMontants();
-    document.getElementById('montantPaiement').value = '';
+    // 2. Événements sur les radios de mode de paiement
+    document.querySelectorAll('input[name="modePaiement"]').forEach(radio => {
+        radio.addEventListener('change', updateStatutPaiement);
+    });
     
-    showMessage(`Paiement de ${montant.toLocaleString('fr-FR')} F CFA enregistré`, 'success');
-});
-
-// Bouton Non payé
-document.getElementById('btnNonPayer').addEventListener('click', function() {
-    paiementActuel.montantPaye = 0;
-    updatePaiementMontants();
-    document.getElementById('montantPaiement').value = '';
-    showMessage('Facture marquée comme non payée', 'warning');
-});
-    console.log("✅ Événements configurés");
+    // 3. Bouton "Valider le paiement"
+    const btnValider = document.getElementById('btnEnregistrerPaiement');
+    if (btnValider) {
+        btnValider.addEventListener('click', function() {
+            updateStatutPaiement();
+            showMessage('✅ Paiement enregistré', 'success');
+        });
+    }
+    
+    // 4. Bouton "Non payé"
+    const btnNonPaye = document.getElementById('btnNonPaye');
+    if (btnNonPaye) {
+        btnNonPaye.addEventListener('click', function() {
+            const montantInput = document.getElementById('montantPayeInput');
+            if (montantInput) {
+                montantInput.value = '0';
+            }
+            updateStatutPaiement();
+            showMessage('⚠️ Facture marquée comme non payée', 'warning');
+        });
+    }
+    
+    console.log("✅ Tous les événements sont configurés");
 }
         // AJOUTEZ cette fonction APRÈS setupEventListeners() :
 
@@ -1215,8 +1232,7 @@ function debugStocks() {
                             ${category.weight}
                         </div>
                         <div style="background: #f0f9ff; padding: 5px; border-radius: 5px; margin-bottom: 10px; text-align: center;">
-                            <span style="color: #0369a1; font-weight: bold;">Stock disponible: ${stockQty}</span>
-                        </div>
+                         </div>
                         <input type="number" 
                                class="category-input" 
                                id="cat-${category.id}"
@@ -1362,22 +1378,41 @@ function resetPaiement() {
         }
         
           // Mettre à jour l'affichage du statut de paiement
-        function updateStatutPaiement() {
-            const reste = parseInt(document.getElementById('montantResteInput').value) || 0;
-            const statutDiv = document.getElementById('statutPaiement');
-            
-            if (reste === 0) {
-                statutDiv.style.display = 'block';
-                statutDiv.style.background = '#d1fae5';
-                statutDiv.style.color = '#065f46';
-                statutDiv.innerHTML = '<i class="fas fa-check-circle"></i> ✅ Payé intégralement';
-            } else if (reste > 0) {
-                statutDiv.style.display = 'block';
-                statutDiv.style.background = '#fee2e2';
-                statutDiv.style.color = '#991b1b';
-                statutDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ⚠ Reste à payer: ${reste.toLocaleString('fr-FR')} F CFA`;
-            }
-        }
+     // Mettre à jour l'affichage du statut de paiement
+function updateStatutPaiement() {
+    const total = parseInt(document.getElementById('totalAmount').textContent.replace(/\D/g, '')) || 0;
+    const montantPaye = parseInt(document.getElementById('montantPayeInput').value) || 0;
+    const reste = Math.max(0, total - montantPaye);
+    
+    // Mettre à jour l'affichage des calculs
+    document.getElementById('montantTotalCalc').textContent = total.toLocaleString('fr-FR') + ' F CFA';
+    document.getElementById('montantPayeCalc').textContent = montantPaye.toLocaleString('fr-FR') + ' F CFA';
+    document.getElementById('montantResteCalc').textContent = reste.toLocaleString('fr-FR') + ' F CFA';
+    
+    // Déterminer le statut
+    const statutDiv = document.getElementById('statutPaiement');
+    const modePaiement = document.querySelector('input[name="modePaiement"]:checked')?.value || 'especes';
+    
+    if (montantPaye === 0) {
+        statutPaiementDetaille = 'impaye';
+        statutDiv.style.display = 'none';
+    } else if (montantPaye >= total) {
+        statutPaiementDetaille = 'paye';
+        statutDiv.style.display = 'block';
+        statutDiv.style.background = '#d1fae5';
+        statutDiv.style.color = '#065f46';
+        statutDiv.innerHTML = `<i class="fas fa-check-circle"></i>  Payé intégralement (${modePaiement === 'especes' ? ' Espèces' : modePaiement === 'wave' ? ' Wave' : ' Orange Money'})`;
+    } else {
+        statutPaiementDetaille = 'partiel';
+        statutDiv.style.display = 'block';
+        statutDiv.style.background = '#fef3c7';
+        statutDiv.style.color = '#92400e';
+        statutDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ⚠ Paiement partiel: ${montantPaye.toLocaleString('fr-FR')} F CFA reçu, reste ${reste.toLocaleString('fr-FR')} F CFA (${modePaiement === 'especes' ? '💵 Espèces' : modePaiement === 'wave' ? ' Wave' : ' Orange Money'})`;
+    }
+    
+    montantPayeActuel = montantPaye;
+    modePaiementActuel = modePaiement;
+}
         // Réinitialiser le formulaire de facture
   // Réinitialiser le formulaire de facture
 function resetInvoiceForm() {
@@ -1426,6 +1461,10 @@ function resetInvoiceForm() {
           // Réinitialiser le paiement
         document.getElementById('montantResteInput').value = '0';
         document.getElementById('statutPaiement').style.display = 'none';
+      // Réinitialiser l'indicateur de modification
+    currentInvoice.id = null;
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    document.querySelector('#invoicePage h2').innerHTML = 'Nouvelle Facture';
 }
         
 async function saveInvoice() {
@@ -1470,10 +1509,17 @@ async function saveInvoice() {
         
         // Préparer les données de paiement
                // Données de paiement simples
-        const resteSaisi = parseInt(document.getElementById('montantResteInput').value) || 0;
+               // Données de paiement COMPLÈTES
+        const montantPaye = parseInt(document.getElementById('montantPayeInput').value) || 0;
+        const total = Object.values(selectedItems).reduce((sum, item) => sum + (item.quantity * item.price), 0);
+        const modePaiement = document.querySelector('input[name="modePaiement"]:checked')?.value || 'especes';
+        
         const paiementData = {
-            resteAPayer: resteSaisi,
-            estPaye: (resteSaisi === 0)
+            montantPaye: montantPaye,
+            resteAPayer: Math.max(0, total - montantPaye),
+            modePaiement: modePaiement,
+            statut: montantPaye === 0 ? 'impaye' : (montantPaye >= total ? 'paye' : 'partiel'),
+            datePaiement: new Date().toISOString()
         };
         
         // Données de la facture
@@ -1504,9 +1550,24 @@ async function saveInvoice() {
             createdAt: new Date().toISOString()
         };
         
-        console.log("💾 Enregistrement facture avec paiement:", paiementData);
-        const invoiceRef = await db.collection('invoices').add(invoiceData);
-        console.log("✅ Facture enregistrée ID:", invoiceRef.id);
+               console.log("💾 Enregistrement facture avec paiement:", paiementData);
+        
+        let invoiceRef;
+        if (currentInvoice.id) {
+            // MISE À JOUR d'une facture existante
+            invoiceRef = db.collection('invoices').doc(currentInvoice.id);
+            await invoiceRef.update({
+                ...invoiceData,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log("✅ Facture mise à jour ID:", currentInvoice.id);
+            showMessage('✅ Facture mise à jour !', 'success');
+        } else {
+            // CRÉATION d'une nouvelle facture
+            invoiceRef = await db.collection('invoices').add(invoiceData);
+            console.log("✅ Facture enregistrée ID:", invoiceRef.id);
+            showMessage('✅ Facture enregistrée !', 'success');
+        }
         
         showMessage('✅ Facture enregistrée !', 'success');
         
@@ -1770,215 +1831,265 @@ function getSoldFieldForCategory(categoryId) {
         }
         
         // Générer le PDF (AVEC BOUTIQUE)
-        async function generatePDF() {
-            if (Object.keys(selectedItems).length === 0 && currentInvoice.items.length === 0) {
-                showMessage('Veuillez d\'abord enregistrer la facture', 'error');
-                return;
-            }
-            
-            // Utiliser les données sauvegardées ou actuelles
-            const invoice = currentInvoice.id ? currentInvoice : {
-                boutique: currentBoutique.id,
-                boutiqueName: currentBoutique.name,
-                boutiquePhone: currentBoutique.phone,
-                client: {
-                    name: document.getElementById('clientName').value.trim() || 'Client non renseigné',
-                    phone: document.getElementById('clientPhone').value.trim() || 'Non renseigné',
-                    address: document.getElementById('clientAddress').value.trim() || 'Non renseigné'
-                },
-                items: Object.values(selectedItems),
-                total: parseInt(document.getElementById('totalAmount').textContent.replace(/\D/g, '')) || 0,
-                date: new Date(),
-                invoiceNumber: generateInvoiceNumber()
-            };
-            
-            // Charger jsPDF
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const margin = 15;
-            let currentY = 20;
-            
-            // EN-TÊTE AVEC BOUTIQUE
-            // Logo
-            try {
-                const logoUrl = 'https://i.postimg.cc/0QBKNcGj/photo-5782651308169956527-x.jpg';
-                doc.addImage(logoUrl, 'JPEG', margin, currentY, 30, 30);
-            } catch (e) {
-                // Si le logo ne charge pas, dessiner un carré
-                doc.setFillColor(currentBoutique.id === 'sacre-coeur' ? [59, 130, 246] : [16, 185, 129]);
-                doc.rect(margin, currentY, 30, 30, 'F');
-                doc.setTextColor(255, 255, 255);
-                doc.setFontSize(12);
-                doc.text(currentBoutique.id === 'sacre-coeur' ? "SC3" : "KM", margin + 15, currentY + 15, { align: 'center', baseline: 'middle' });
-            }
-            
-            // Informations de l'entreprise AVEC BOUTIQUE
-            doc.setTextColor(30, 41, 59);
-            doc.setFontSize(20);
-            doc.setFont("helvetica", "bold");
-            doc.text("DAKAR CHICKEN EXPRESS", pageWidth / 2, currentY + 10, { align: 'center' });
-            
-            doc.setFontSize(12);
-            doc.text(invoice.boutiqueName, pageWidth / 2, currentY + 20, { align: 'center' });
-            
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "normal");
-            doc.text(`Tél: ${invoice.boutiquePhone}`, pageWidth / 2, currentY + 28, { align: 'center' });
-            doc.text("Spécialiste en volailles de qualité", pageWidth / 2, currentY + 33, { align: 'center' });
-            
-            currentY += 45;
-            
-            // Informations client
-            doc.setFontSize(12);
-            doc.setFont("helvetica", "bold");
-            doc.text("FACTURE", margin, currentY);
-            
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "normal");
-            doc.text(`N°: ${invoice.invoiceNumber}`, pageWidth - margin, currentY, { align: 'right' });
-            currentY += 10;
-            
-            doc.text(`Date: ${formatDate(invoice.date)}`, pageWidth - margin, currentY, { align: 'right' });
-            currentY += 10;
-            
-            doc.text(`Heure: ${formatTime(invoice.date)}`, pageWidth - margin, currentY, { align: 'right' });
-            currentY += 15;
-            
-            doc.setDrawColor(200, 200, 200);
-            doc.line(margin, currentY, pageWidth - margin, currentY);
-            currentY += 10;
-            
-            // Informations client
-            if (invoice.client.name !== 'Client non renseigné') {
-                doc.setFontSize(11);
-                doc.setFont("helvetica", "bold");
-                doc.text("CLIENT:", margin, currentY);
-                
-                doc.setFont("helvetica", "normal");
-                currentY += 7;
-                doc.text(`Nom: ${invoice.client.name}`, margin + 10, currentY);
-                currentY += 5;
-                
-                if (invoice.client.phone !== 'Non renseigné') {
-                    doc.text(`Tél: ${invoice.client.phone}`, margin + 10, currentY);
-                    currentY += 5;
-                }
-                
-                if (invoice.client.address !== 'Non renseigné') {
-                    doc.text(`Adresse: ${invoice.client.address}`, margin + 10, currentY);
-                    currentY += 5;
-                }
-                
-                currentY += 10;
-            }
-            
-            // DÉTAILS DE LA FACTURE
-            doc.setFontSize(12);
-            doc.setFont("helvetica", "bold");
-            doc.text("DÉTAIL DE LA COMMANDE", margin, currentY);
-            currentY += 10;
-            
-            doc.setDrawColor(200, 200, 200);
-            doc.line(margin, currentY, pageWidth - margin, currentY);
-            currentY += 5;
-            
-            // En-tête du tableau
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "bold");
-            doc.text("DESCRIPTION", margin, currentY);
-            doc.text("QUANTITÉ", margin + 100, currentY);
-            doc.text("PRIX UNIT.", margin + 130, currentY);
-            doc.text("TOTAL", pageWidth - margin - 30, currentY, { align: 'right' });
-            currentY += 7;
-            
-            doc.setDrawColor(200, 200, 200);
-            doc.line(margin, currentY, pageWidth - margin, currentY);
-            currentY += 10;
-            
-            // Items (SEULEMENT ceux avec quantité ≥1)
-            doc.setFont("helvetica", "normal");
-            invoice.items.forEach(item => {
-                if (currentY > 250) {
-                    doc.addPage();
-                    currentY = 20;
-                }
-                
-                doc.text(`${item.name} (${item.weight})`, margin, currentY);
-                doc.text(item.quantity.toString(), margin + 100, currentY);
-                doc.text(`${item.price.toLocaleString('fr-FR')} F CFA`, margin + 130, currentY);
-                doc.text(`${item.subtotal.toLocaleString('fr-FR')} F CFA`, pageWidth - margin, currentY, { align: 'right' });
-                
-                currentY += 10;
-            });
-            
-            currentY += 10;
-            
-            // Ligne de séparation
-            doc.setDrawColor(100, 100, 100);
-            doc.line(margin, currentY, pageWidth - margin, currentY);
-            currentY += 15;
-            
-            // TOTAL
-            doc.setFontSize(14);
-            doc.setFont("helvetica", "bold");
-            doc.text("TOTAL TTC:", pageWidth - margin - 50, currentY);
-            doc.text(`${invoice.total.toLocaleString('fr-FR')} F CFA`, pageWidth - margin, currentY, { align: 'right' });
-            
-            currentY += 20;
-            
-            // Informations de paiement
+      // Générer le PDF avec design amélioré
+async function generatePDF() {
+    if (Object.keys(selectedItems).length === 0 && currentInvoice.items.length === 0) {
+        showMessage('Veuillez d\'abord enregistrer la facture', 'error');
+        return;
+    }
+    
+    // Utiliser les données sauvegardées ou actuelles
+    const invoice = currentInvoice.id ? currentInvoice : {
+        boutique: currentBoutique.id,
+        boutiqueName: currentBoutique.name,
+        boutiquePhone: currentBoutique.phone,
+        client: {
+            name: document.getElementById('clientName').value.trim() || 'Client non renseigné',
+            phone: document.getElementById('clientPhone').value.trim() || 'Non renseigné',
+            address: document.getElementById('clientAddress').value.trim() || 'Non renseigné'
+        },
+        items: Object.values(selectedItems),
+        total: parseInt(document.getElementById('totalAmount').textContent.replace(/\D/g, '')) || 0,
+        date: new Date(),
+        invoiceNumber: generateInvoiceNumber(),
+        paiement: {
+            montantPaye: parseInt(document.getElementById('montantPayeInput').value) || 0,
+            resteAPayer: parseInt(document.getElementById('montantResteCalc').textContent.replace(/\D/g, '')) || 0,
+            modePaiement: document.querySelector('input[name="modePaiement"]:checked')?.value || 'especes',
+            statut: statutPaiementDetaille
+        }
+    };
+    
+    // Charger jsPDF
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    let currentY = 20;
+    
+    // === EN-TÊTE PROFESSIONNEL ===
+    // Logo et titre
+    try {
+        const logoUrl = 'https://i.postimg.cc/0QBKNcGj/photo-5782651308169956527-x.jpg';
+        doc.addImage(logoUrl, 'JPEG', margin, currentY, 25, 25);
+    } catch (e) {
+        // Si le logo ne charge pas, faire un cercle coloré
+        doc.setFillColor(currentBoutique.id === 'sacre-coeur' ? 59 : 16, 
+                        currentBoutique.id === 'sacre-coeur' ? 130 : 185, 
+                        currentBoutique.id === 'sacre-coeur' ? 246 : 129);
+        doc.circle(margin + 12.5, currentY + 12.5, 12.5, 'F');
+        doc.setTextColor(255, 255, 255);
         doc.setFontSize(12);
+        doc.text(currentBoutique.id === 'sacre-coeur' ? "SC3" : "KM", margin + 12.5, currentY + 13, { align: 'center', baseline: 'middle' });
+    }
+    
+    // Informations entreprise
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text("DAKAR CHICKEN EXPRESS", pageWidth / 2, currentY + 8, { align: 'center' });
+    
+    doc.setFontSize(14);
+    doc.setTextColor(currentBoutique.id === 'sacre-coeur' ? '#3B82F6' : '#10B981');
+    doc.text(invoice.boutiqueName, pageWidth / 2, currentY + 18, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Tél: ${invoice.boutiquePhone}`, pageWidth / 2, currentY + 26, { align: 'center' });
+    doc.text("Spécialiste en volailles de qualité", pageWidth / 2, currentY + 32, { align: 'center' });
+    
+    currentY += 45;
+    
+    // === TAMPON PAYÉ (si applicable) ===
+    if (invoice.paiement.statut === 'paye') {
+        // Dessiner un tampon semi-transparent
+        doc.setGState(new doc.GState({ opacity: 0.2 }));
         doc.setFont("helvetica", "bold");
-        doc.text("PAIEMENT", margin, currentY);
-        currentY += 10;
+        doc.setFontSize(60);
+        doc.setTextColor(16, 185, 129); // Vert
+        doc.text("PAYÉ", pageWidth / 2, pageHeight / 2, { 
+            align: 'center', 
+            angle: 45,
+            rendering: 'stroke'
+        });
+        doc.setGState(new doc.GState({ opacity: 1 }));
+    }
+    
+    // === TITRE FACTURE ===
+    doc.setDrawColor(200, 200, 200);
+    doc.setFillColor(249, 250, 251);
+    doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 25, 3, 3, 'F');
+    
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("FACTURE", pageWidth / 2, currentY + 17, { align: 'center' });
+    currentY += 35;
+    
+    // === INFORMATIONS FACTURE (N°, Date) ===
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    
+    doc.text(`N°: ${invoice.invoiceNumber}`, margin, currentY);
+    doc.text(`Date: ${formatDate(invoice.date)}`, pageWidth - margin, currentY, { align: 'right' });
+    currentY += 7;
+    doc.text(`Heure: ${formatTime(invoice.date)}`, pageWidth - margin, currentY, { align: 'right' });
+    currentY += 15;
+    
+    // === INFORMATIONS CLIENT ===
+    if (invoice.client.name !== 'Client non renseigné') {
+        doc.setFillColor(249, 250, 251);
+        doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 45, 3, 3, 'F');
         
-        doc.setDrawColor(200, 200, 200);
-        doc.line(margin, currentY, pageWidth - margin, currentY);
-        currentY += 10;
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(30, 41, 59);
+        doc.text("CLIENT", margin + 5, currentY + 8);
         
+        doc.setFont("helvetica", "normal");
         doc.setFontSize(10);
-        const reste = invoice.paiement?.resteAPayer || 0;
+        doc.setTextColor(71, 85, 105);
+        doc.text(`Nom: ${invoice.client.name}`, margin + 5, currentY + 18);
         
-        if (reste === 0) {
-            doc.setTextColor(16, 185, 129); // Vert
-            doc.text("✓ PAYÉ INTÉGRALEMENT", margin, currentY);
-        } else {
-            doc.setTextColor(245, 158, 11); // Orange
-            doc.text(`⚠ RESTE À PAYER: ${reste.toLocaleString('fr-FR')} F CFA`, margin, currentY);
+        let yOffset = 18;
+        if (invoice.client.phone !== 'Non renseigné') {
+            doc.text(`Tél: ${invoice.client.phone}`, margin + 5, currentY + 28);
+            yOffset = 28;
+        }
+        if (invoice.client.address !== 'Non renseigné') {
+            doc.text(`Adresse: ${invoice.client.address}`, margin + 5, currentY + (invoice.client.phone !== 'Non renseigné' ? 38 : 28));
         }
         
-        // Réinitialiser la couleur
-        doc.setTextColor(0, 0, 0);
-        currentY += 15;
-        
-        doc.setDrawColor(200, 200, 200);
-        doc.line(margin, currentY, pageWidth - margin, currentY);
-        currentY += 15;  
-            // SIGNATURE
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "normal");
-            doc.text("Signature:", margin, currentY);
-            currentY += 20;
-            
-            doc.setDrawColor(100, 100, 100);
-            doc.line(margin, currentY, margin + 80, currentY);
-            
-            currentY += 10;
-            
-            // PIED DE PAGE
-            doc.setFontSize(8);
-            doc.setTextColor(150, 150, 150);
-            doc.text("Merci pour votre confiance !", pageWidth / 2, 280, { align: 'center' });
-            doc.text(`${invoice.boutiqueName} - DAKAR CHICKEN EXPRESS`, pageWidth / 2, 285, { align: 'center' });
-            
-            // Sauvegarder le PDF
-            const fileName = `Facture_${invoice.boutiqueName}_${invoice.invoiceNumber}.pdf`;
-            doc.save(fileName);
-            
-            showMessage('PDF généré avec succès!', 'success');
+        currentY += 60;
+    } else {
+        currentY += 5;
+    }
+    
+    // === TABLEAU DES ARTICLES ===
+    // En-tête du tableau
+    doc.setFillColor(currentBoutique.id === 'sacre-coeur' ? 59 : 16, 
+                    currentBoutique.id === 'sacre-coeur' ? 130 : 185, 
+                    currentBoutique.id === 'sacre-coeur' ? 246 : 129);
+    doc.rect(margin, currentY, pageWidth - (margin * 2), 12, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Description", margin + 5, currentY + 8);
+    doc.text("Qté", margin + 100, currentY + 8);
+    doc.text("P.U.", margin + 130, currentY + 8);
+    doc.text("Total", pageWidth - margin - 30, currentY + 8, { align: 'right' });
+    
+    currentY += 12;
+    
+    // Lignes du tableau
+    let startY = currentY;
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(9);
+    
+    invoice.items.forEach((item, index) => {
+        if (currentY > 250) {
+            doc.addPage();
+            currentY = 20;
         }
+        
+        // Alterner les couleurs de fond
+        if (index % 2 === 0) {
+            doc.setFillColor(249, 250, 251);
+            doc.rect(margin, currentY - 4, pageWidth - (margin * 2), 10, 'F');
+        }
+        
+        doc.text(`${item.name} (${item.weight})`, margin + 5, currentY);
+        doc.text(item.quantity.toString(), margin + 100, currentY);
+        doc.text(`${item.price.toLocaleString('fr-FR')}`, margin + 130, currentY);
+        doc.text(`${item.subtotal.toLocaleString('fr-FR')} F CFA`, pageWidth - margin - 30, currentY, { align: 'right' });
+        
+        currentY += 8;
+    });
+    
+    currentY += 5;
+    
+    // Ligne de séparation
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, currentY, pageWidth - margin, currentY);
+    currentY += 10;
+    
+    // === TOTAL ===
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("TOTAL TTC:", pageWidth - margin - 80, currentY);
+    doc.setTextColor(currentBoutique.id === 'sacre-coeur' ? '#3B82F6' : '#10B981');
+    doc.text(`${invoice.total.toLocaleString('fr-FR')} F CFA`, pageWidth - margin, currentY, { align: 'right' });
+    
+    currentY += 20;
+    
+    // === INFORMATIONS DE PAIEMENT ===
+    doc.setFillColor(249, 250, 251);
+    doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 45, 3, 3, 'F');
+    
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("PAIEMENT", margin + 5, currentY + 8);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    
+    // Mode de paiement
+    const modeTexte = invoice.paiement.modePaiement === 'especes' ? ' Espèces' : 
+                     invoice.paiement.modePaiement === 'wave' ? ' Wave' : ' Orange Money';
+    doc.text(`Mode: ${modeTexte}`, margin + 5, currentY + 18);
+    
+    // Montant payé
+    if (invoice.paiement.montantPaye > 0) {
+        doc.text(`Montant reçu: ${invoice.paiement.montantPaye.toLocaleString('fr-FR')} F CFA`, margin + 5, currentY + 28);
+    }
+    
+    // Reste à payer ou statut
+    if (invoice.paiement.statut === 'paye') {
+        doc.setTextColor(16, 185, 129);
+        doc.text("✓ Payé intégralement", pageWidth - margin - 80, currentY + 28, { align: 'right' });
+    } else if (invoice.paiement.statut === 'partiel') {
+        doc.setTextColor(245, 158, 11);
+        doc.text(`⚠ Reste: ${invoice.paiement.resteAPayer.toLocaleString('fr-FR')} F CFA`, pageWidth - margin - 5, currentY + 28, { align: 'right' });
+    } else {
+        doc.setTextColor(239, 68, 68);
+        doc.text("✗ Non payé", pageWidth - margin - 40, currentY + 28, { align: 'right' });
+    }
+    
+    currentY += 55;
+    
+    // === SIGNATURE ET MENTIONS LÉGALES ===
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Signature du client:", margin, currentY);
+    
+    doc.setDrawColor(100, 100, 100);
+    doc.line(margin + 45, currentY - 2, margin + 100, currentY - 2);
+    
+    doc.text("Cachet et signature", pageWidth - margin - 60, currentY, { align: 'right' });
+    doc.line(pageWidth - margin - 65, currentY - 2, pageWidth - margin, currentY - 2);
+    
+    currentY += 20;
+    
+    // === PIED DE PAGE ===
+    doc.setFontSize(8);
+    doc.setTextColor(156, 163, 175);
+    doc.text("Merci pour votre confiance !", pageWidth / 2, pageHeight - 15, { align: 'center' });
+    doc.text(`${invoice.boutiqueName} - DAKAR CHICKEN EXPRESS`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    
+    // Sauvegarder le PDF
+    const fileName = `Facture_${invoice.boutiqueName}_${invoice.invoiceNumber}.pdf`;
+    doc.save(fileName);
+    
+    showMessage('PDF généré avec succès!', 'success');
+}
         
         // Formater la date
         function formatDate(date) {
@@ -2174,7 +2285,7 @@ function showBoutiqueHistory() {
                     
                     totalCA += facture.total || 0;
                     
-                    html += `
+                   html += `
     <tr style="border-bottom: 1px solid #eee;">
         <td style="padding: 10px;">
             <strong>${facture.invoiceNumber || 'N/A'}</strong>
@@ -2185,14 +2296,17 @@ function showBoutiqueHistory() {
             ${(facture.total || 0).toLocaleString('fr-FR')} F CFA
         </td>
         <td style="padding: 10px; text-align: center;">
-            <!-- AJOUTEZ CES BOUTONS -->
             <button onclick="viewInvoiceFromHistory('${facture.id}')" 
-                    style="background: #3b82f6; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; margin-right: 5px; font-size: 0.8rem;">
-                <i class="fas fa-eye"></i> Détails
+                    style="background: #3b82f6; color: white; border: none; padding: 5px 8px; border-radius: 5px; cursor: pointer; margin-right: 3px; font-size: 0.8rem;">
+                <i class="fas fa-eye"></i>
+            </button>
+            <button onclick="editInvoice('${facture.id}')" 
+                    style="background: #f59e0b; color: white; border: none; padding: 5px 8px; border-radius: 5px; cursor: pointer; margin-right: 3px; font-size: 0.8rem;">
+                <i class="fas fa-edit"></i>
             </button>
             <button onclick="regeneratePDF('${facture.id}')" 
-                    style="background: #10b981; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem;">
-                <i class="fas fa-file-pdf"></i> PDF
+                    style="background: #10b981; color: white; border: none; padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: 0.8rem;">
+                <i class="fas fa-file-pdf"></i>
             </button>
         </td>
     </tr>
@@ -2499,7 +2613,6 @@ function viewInvoiceFromHistory(invoiceId) {
         });
 }
 
-// Fonction simple pour afficher les détails
 function showSimpleInvoiceModal(invoice, invoiceId) {
     // Formater la date
     let date;
@@ -2524,6 +2637,41 @@ function showSimpleInvoiceModal(invoice, invoiceId) {
         });
     }
     
+    // Informations de paiement (à ajouter après l'affichage des articles)
+    let paiementHTML = '';
+    if (invoice.paiement) {
+        const modeTexte = invoice.paiement.modePaiement === 'especes' ? ' Espèces' : 
+                         invoice.paiement.modePaiement === 'wave' ? ' Wave' : ' Orange Money';
+        const statutTexte = invoice.paiement.statut === 'paye' ? 'Payé intégralement' : 
+                           invoice.paiement.statut === 'partiel' ? 'Paiement partiel' : 'Non payé';
+        const couleurStatut = invoice.paiement.statut === 'paye' ? '#059669' : 
+                             invoice.paiement.statut === 'partiel' ? '#d97706' : '#dc2626';
+        
+        paiementHTML = `
+            <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 10px;">
+                <h4 style="margin: 0 0 10px 0; color: #333;">Informations de paiement</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <div style="color: #666; font-size: 0.9rem;">Mode de paiement</div>
+                        <div style="font-weight: bold;">${modeTexte}</div>
+                    </div>
+                    <div>
+                        <div style="color: #666; font-size: 0.9rem;">Montant payé</div>
+                        <div style="font-weight: bold;">${(invoice.paiement.montantPaye || 0).toLocaleString('fr-FR')} F CFA</div>
+                    </div>
+                    <div>
+                        <div style="color: #666; font-size: 0.9rem;">Reste à payer</div>
+                        <div style="font-weight: bold;">${(invoice.paiement.resteAPayer || invoice.total).toLocaleString('fr-FR')} F CFA</div>
+                    </div>
+                    <div>
+                        <div style="color: #666; font-size: 0.9rem;">Statut</div>
+                        <div style="font-weight: bold; color: ${couleurStatut};">${statutTexte}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
     // Modal HTML
     const modalHTML = `
         <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;">
@@ -2543,6 +2691,8 @@ function showSimpleInvoiceModal(invoice, invoiceId) {
                     ${itemsHTML || '<p>Aucun article</p>'}
                 </div>
                 
+                ${paiementHTML}
+                
                 <div style="border-top: 2px solid #333; padding-top: 10px; font-size: 1.2rem; font-weight: bold; text-align: right;">
                     TOTAL: ${(invoice.total || 0).toLocaleString('fr-FR')} F CFA
                 </div>
@@ -2560,29 +2710,7 @@ function showSimpleInvoiceModal(invoice, invoiceId) {
             </div>
         </div>
     `;
-    // Informations de paiement (à ajouter après l'affichage des articles)
-let paiementHTML = '';
-if (invoice.paiement) {
-    const statutTexte = invoice.paiement.statut === 'paye' ? 'Payé intégralement' : 
-                        invoice.paiement.statut === 'partiel' ? 'Paiement partiel' : 'Non payé';
     
-    paiementHTML = `
-        <div style="margin-top: 15px; padding: 10px; background: ${invoice.paiement.statut === 'paye' ? '#d1fae5' : invoice.paiement.statut === 'partiel' ? '#fef3c7' : '#fee2e2'}; border-radius: 8px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                <span><strong>Montant payé:</strong></span>
-                <span>${(invoice.paiement.montantPaye || 0).toLocaleString('fr-FR')} F CFA</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                <span><strong>Reste à payer:</strong></span>
-                <span>${(invoice.paiement.resteAPayer || invoice.total).toLocaleString('fr-FR')} F CFA</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-weight: bold; color: ${invoice.paiement.statut === 'paye' ? '#059669' : invoice.paiement.statut === 'partiel' ? '#d97706' : '#dc2626'};">
-                <span>Statut:</span>
-                <span>${statutTexte}</span>
-            </div>
-        </div>
-    `;
-}
     // Ajouter au body
     const modalDiv = document.createElement('div');
     modalDiv.id = 'simpleInvoiceModal';
@@ -2590,6 +2718,105 @@ if (invoice.paiement) {
     document.body.appendChild(modalDiv);
 }
 
+// Fonction pour modifier une facture existante (VERSION SIMPLIFIÉE)
+function editInvoice(invoiceId) {
+    console.log('🔧 Modification facture:', invoiceId);
+    
+    if (!invoiceId) {
+        showMessage('ID de facture invalide', 'error');
+        return;
+    }
+    
+    showMessage('Chargement de la facture...', 'warning');
+    
+    // Accès direct à Firestore
+    db.collection('invoices').doc(invoiceId).get()
+        .then(doc => {
+            console.log('📄 Document récupéré:', doc.exists);
+            
+            if (!doc.exists) {
+                showMessage('Facture non trouvée dans la base de données', 'error');
+                return;
+            }
+            
+            const invoice = doc.data();
+            console.log('📊 Données facture:', invoice);
+            
+            // Fermer TOUTES les modales ouvertes
+            try {
+                closeModal();
+            } catch(e) { console.log('Pas de modal à fermer'); }
+            
+            const historyModal = document.getElementById('historyModal');
+            if (historyModal) historyModal.remove();
+            
+            const simpleModal = document.getElementById('simpleInvoiceModal');
+            if (simpleModal) simpleModal.remove();
+            
+            // S'assurer que currentBoutique existe
+            if (!currentBoutique && invoice.boutique) {
+                // Recréer currentBoutique à partir des données de la facture
+                currentBoutique = {
+                    id: invoice.boutique,
+                    name: invoice.boutiqueName || (invoice.boutique === 'sacre-coeur' ? 'SACRÉ COEUR 3' : 'KEUR MASSAR'),
+                    phone: invoice.boutiquePhone || '77 777 77 77'
+                };
+                console.log('🏪 Boutique restaurée:', currentBoutique);
+            }
+            
+            // Stocker l'ID de la facture en cours de modification
+            currentInvoice = {
+                id: invoiceId,
+                boutique: invoice.boutique || currentBoutique?.id || '',
+                boutiqueName: invoice.boutiqueName || currentBoutique?.name || '',
+                boutiquePhone: invoice.boutiquePhone || currentBoutique?.phone || '',
+                productionId: invoice.productionId || '',
+                stockAttribueId: invoice.stockAttribueId || '',
+                client: invoice.client || { name: '', phone: '', address: '' },
+                items: invoice.items || [],
+                total: invoice.total || 0,
+                date: invoice.date || new Date(),
+                invoiceNumber: invoice.invoiceNumber || 'N/A',
+                paiement: invoice.paiement || {
+                    montantPaye: 0,
+                    resteAPayer: invoice.total || 0,
+                    modePaiement: 'especes',
+                    statut: 'impaye'
+                }
+            };
+            
+            console.log('✅ currentInvoice défini:', currentInvoice);
+            
+            // Afficher la page de facturation
+            document.getElementById('mainInterface').style.display = 'none';
+            document.getElementById('invoicePage').style.display = 'block';
+            
+            // Remplir le formulaire avec les données existantes
+            fillInvoiceFormSimple(invoice);
+            
+            // Afficher le bouton Annuler
+            const cancelBtn = document.getElementById('cancelEditBtn');
+            if (cancelBtn) {
+                cancelBtn.style.display = 'inline-block';
+            }
+            
+            // Modifier le titre
+            const header = document.querySelector('#invoicePage h2');
+            if (header) {
+                header.innerHTML = `Modification Facture <small style="font-size: 0.8rem; color: #f59e0b;">(${invoice.invoiceNumber || ''})</small>`;
+            }
+            
+            showMessage('✅ Facture chargée pour modification', 'success');
+            
+        })
+        .catch(error => {
+            console.error('❌ ERREUR COMPLÈTE:', error);
+            console.error('❌ Message:', error.message);
+            console.error('❌ Stack:', error.stack);
+            
+            showMessage('Erreur de chargement: ' + (error.message || 'problème technique'), 'error');
+        });
+}
 // Fonction pour fermer la modal
 function closeModal() {
     const modal = document.getElementById('simpleInvoiceModal');
