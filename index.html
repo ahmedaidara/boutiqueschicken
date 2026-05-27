@@ -1954,51 +1954,95 @@ function debugStocks() {
             
             // Ajouter les événements sur les inputs
             container.querySelectorAll('.category-input').forEach(input => {
-                input.addEventListener('input', updateSummary);
+                input.addEventListener('input', function(e) {
+    // Éviter les valeurs négatives
+    if (this.value < 0) this.value = 0;
+    // Limiter au max
+    if (this.value > this.max) this.value = this.max;
+    updateSummary();
+});
             });
         }
         
         // Mettre à jour le résumé
-        function updateSummary() {
-            selectedItems = {};
-            let total = 0;
+       // Variable pour éviter les boucles infinies
+let updatingSummary = false;
+
+function updateSummary() {
+    // Éviter les appels en cascade
+    if (updatingSummary) return;
+    updatingSummary = true;
+    
+    try {
+        selectedItems = {};
+        let total = 0;
+        
+        // Récupérer toutes les quantités
+        document.querySelectorAll('.category-input').forEach(input => {
+            // Lire la valeur SANS déclencher d'événement
+            let quantity = 0;
+            try {
+                quantity = parseInt(input.value) || 0;
+            } catch(e) {
+                quantity = 0;
+            }
             
-            // Récupérer toutes les quantités
-            document.querySelectorAll('.category-input').forEach(input => {
-                const quantity = parseInt(input.value) || 0;
-                if (quantity > 0) {
-                    const id = input.getAttribute('data-id');
-                    const name = input.getAttribute('data-name');
-                    const weight = input.getAttribute('data-weight');
-                    const price = parseInt(input.getAttribute('data-price'));
-                    
-                    selectedItems[id] = {
-                        id: id,
-                        name: name,
-                        weight: weight,
-                        price: price,
-                        quantity: quantity,
-                        subtotal: quantity * price
-                    };
-                    
-                    total += quantity * price;
-                }
-            });
+            // Limiter au maximum autorisé
+            const max = parseInt(input.max) || 9999;
+            if (quantity > max) {
+                quantity = max;
+                input.value = max;
+            }
             
-            // Mettre à jour l'affichage du total
-            document.getElementById('totalAmount').textContent = total.toLocaleString('fr-FR') + ' F CFA';
-            
-            // Mettre à jour la liste des items sélectionnés
-            updateSelectedItemsList();
-          // Mettre à jour les montants de paiement
-updatePaiementMontants();
+            if (quantity > 0) {
+                const id = input.getAttribute('data-id');
+                const name = input.getAttribute('data-name');
+                const weight = input.getAttribute('data-weight');
+                const price = parseInt(input.getAttribute('data-price'));
+                
+                selectedItems[id] = {
+                    id: id,
+                    name: name,
+                    weight: weight,
+                    price: price,
+                    quantity: quantity,
+                    subtotal: quantity * price
+                };
+                
+                total += quantity * price;
+            }
+        });
+        
+        // Mettre à jour l'affichage
+        const totalAmountEl = document.getElementById('totalAmount');
+        if (totalAmountEl) {
+            totalAmountEl.textContent = total.toLocaleString('fr-FR') + ' F CFA';
         }
         
-  // Variables globales pour le paiement
-let paiementActuel = {
-    montantPaye: 0,
-    statut: 'impaye' // 'impaye', 'partiel', 'paye'
-};
+        updateSelectedItemsList();
+        
+        // Mettre à jour les montants de paiement
+        const totalMontant = total;
+        const montantPayeInput = document.getElementById('montantPayeInput');
+        const montantPaye = montantPayeInput ? (parseInt(montantPayeInput.value) || 0) : 0;
+        
+        const totalCalcEl = document.getElementById('montantTotalCalc');
+        const payeCalcEl = document.getElementById('montantPayeCalc');
+        const resteCalcEl = document.getElementById('montantResteCalc');
+        
+        if (totalCalcEl) totalCalcEl.textContent = totalMontant.toLocaleString('fr-FR') + ' F CFA';
+        if (payeCalcEl) payeCalcEl.textContent = montantPaye.toLocaleString('fr-FR') + ' F CFA';
+        if (resteCalcEl) resteCalcEl.textContent = Math.max(0, totalMontant - montantPaye).toLocaleString('fr-FR') + ' F CFA';
+        
+    } catch(error) {
+        console.error("Erreur updateSummary:", error);
+    } finally {
+        // Réactiver après un court délai
+        setTimeout(() => {
+            updatingSummary = false;
+        }, 100);
+    }
+}
 
 // Mettre à jour les montants de paiement
 function updatePaiementMontants() {
