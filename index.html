@@ -514,6 +514,621 @@
     background: #fee2e2;
     color: #dc2626;
 }
+      
+      /* Styles pour la page dettes */
+.status-impaye { background: #fee2e2; color: #dc2626; padding: 4px 8px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; display: inline-block; }
+.status-partiel { background: #fef3c7; color: #d97706; padding: 4px 8px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; display: inline-block; }
+.status-paye { background: #d1fae5; color: #059669; padding: 4px 8px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; display: inline-block; }
+.debt-row:hover { background: #f8f9fa; cursor: pointer; }
+      
+      
+      /* Styles pour la page dettes */
+.status-impaye { 
+    background: #fee2e2; 
+    color: #dc2626; 
+    padding: 4px 8px; 
+    border-radius: 20px; 
+    font-size: 0.8rem; 
+    font-weight: bold; 
+    display: inline-block; 
+}
+
+.status-partiel { 
+    background: #fef3c7; 
+    color: #d97706; 
+    padding: 4px 8px; 
+    border-radius: 20px; 
+    font-size: 0.8rem; 
+    font-weight: bold; 
+    display: inline-block; 
+}
+
+.status-paye { 
+    background: #d1fae5; 
+    color: #059669; 
+    padding: 4px 8px; 
+    border-radius: 20px; 
+    font-size: 0.8rem; 
+    font-weight: bold; 
+    display: inline-block; 
+}
+
+.debt-row:hover { 
+    background: #f8f9fa; 
+    cursor: pointer; 
+}
+
+/* Modal dettes */
+#debtDetailModal .form-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+#debtDetailModal select.form-input {
+    background: white;
+}
+      
+      /* ============================================== */
+/* STYLES POUR LA PAGE GESTION DES DETTES */
+/* ============================================== */
+
+/* Conteneur principal */
+.debts-container {
+    background: white;
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
+}
+
+/* Titre de la page */
+.debts-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.debts-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.debts-title i {
+    background: none;
+    -webkit-background-clip: unset;
+    background-clip: unset;
+    color: #667eea;
+}
+
+/* Filtres */
+.debts-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+    background: #f8fafc;
+    padding: 20px;
+    border-radius: 16px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.filter-group label {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.filter-group label i {
+    color: #667eea;
+    font-size: 0.9rem;
+}
+
+.filter-group input,
+.filter-group select {
+    padding: 12px 15px;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    transition: all 0.3s;
+    background: white;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+    border-color: #667eea;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.refresh-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.3s;
+    margin-top: 28px;
+}
+
+.refresh-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+}
+
+/* Tableau des dettes */
+.debts-table-wrapper {
+    overflow-x: auto;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    background: white;
+}
+
+.debts-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.debts-table th {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 14px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.debts-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+
+.debts-table tr:hover {
+    background: #f8fafc;
+    cursor: pointer;
+}
+
+/* Badges de statut */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 30px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-impaye {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.status-impaye::before {
+    content: "●";
+    font-size: 0.7rem;
+}
+
+.status-partiel {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.status-partiel::before {
+    content: "⚠";
+    font-size: 0.7rem;
+    margin-right: 3px;
+}
+
+.status-paye {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.status-paye::before {
+    content: "✓";
+    font-weight: bold;
+    margin-right: 3px;
+}
+
+/* Montants */
+.amount-total {
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.amount-paid {
+    color: #10b981;
+    font-weight: 500;
+}
+
+.amount-remaining {
+    color: #dc2626;
+    font-weight: 700;
+}
+
+/* Boutons d'action */
+.action-buttons-cell {
+    display: flex;
+    gap: 8px;
+}
+
+.action-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.action-icon.view {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.action-icon.edit {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+}
+
+.action-icon:hover {
+    transform: scale(1.05);
+}
+
+/* Statistiques rapides */
+.debts-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.debt-stat-card {
+    background: linear-gradient(135deg, white 0%, #f8fafc 100%);
+    padding: 15px;
+    border-radius: 16px;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+}
+
+.debt-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.debt-stat-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 5px;
+}
+
+/* Modal détails */
+.debt-modal-content {
+    background: white;
+    border-radius: 24px;
+    width: 90%;
+    max-width: 550px;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+}
+
+.debt-modal-header {
+    position: sticky;
+    top: 0;
+    background: white;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.debt-modal-body {
+    padding: 24px;
+}
+
+.debt-modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .debts-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .debts-table th,
+    .debts-table td {
+        padding: 10px 8px;
+        font-size: 0.75rem;
+    }
+    
+    .status-badge {
+        padding: 3px 8px;
+        font-size: 0.7rem;
+    }
+    
+    .action-icon {
+        width: 28px;
+        height: 28px;
+    }
+}
+      
+      /* ========== PAGE DETTES - STYLES UNIQUES ========== */
+#debtsPage {
+    background: white;
+    border-radius: 20px;
+    padding: 20px;
+}
+
+#debtsPage h2 {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-left: 4px solid #667eea;
+    padding-left: 15px;
+}
+
+/* Container des filtres */
+#debtsPage .client-info {
+    background: #f1f5f9;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+
+#debtsPage .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    align-items: end;
+}
+
+#debtsPage .input-group label {
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 5px;
+    display: block;
+}
+
+#debtsPage .input-group input,
+#debtsPage .input-group select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+
+#debtsPage .input-group input:focus,
+#debtsPage .input-group select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+}
+
+/* Tableau */
+#debtsPage .table-container {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+#debtsPage .records-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#debtsPage .records-table th {
+    background: #667eea;
+    color: white;
+    padding: 14px 12px;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+#debtsPage .records-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+}
+
+#debtsPage .records-table tr:hover {
+    background: #f8fafc;
+    cursor: pointer;
+}
+
+/* Badges statut */
+#debtsPage .status-impaye {
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    display: inline-block;
+}
+
+#debtsPage .status-partiel {
+    background: #fef3c7;
+    color: #d97706;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    display: inline-block;
+}
+
+#debtsPage .status-paye {
+    background: #d1fae5;
+    color: #059669;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    display: inline-block;
+}
+
+/* Montants */
+#debtsPage td:nth-child(5) { font-weight: bold; color: #1e293b; }
+#debtsPage td:nth-child(6) { color: #10b981; font-weight: 500; }
+#debtsPage td:nth-child(7) { color: #dc2626; font-weight: bold; }
+
+/* Boutons action */
+#debtsPage .action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+#debtsPage .action-btn-small {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+}
+
+#debtsPage .action-btn-small.view {
+    background: #e0e7ff;
+    color: #4f46e5;
+}
+
+#debtsPage .action-btn-small.edit {
+    background: #fed7aa;
+    color: #ea580c;
+}
+
+#debtsPage .action-btn-small:hover {
+    transform: scale(1.05);
+}
+
+/* Modal */
+#debtDetailModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+#debtDetailModal > div {
+    background: white;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 550px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+/* Bouton retour */
+#backFromDebtsBtn {
+    background: #f1f5f9;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+}
+
+#backFromDebtsBtn:hover {
+    background: #e2e8f0;
+}
+      
+      /* Responsive page dettes pour téléphone */
+@media (max-width: 768px) {
+    #debtsPage .info-grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+    }
+    
+    #debtsPage .records-table th,
+    #debtsPage .records-table td {
+        padding: 8px 5px !important;
+        font-size: 0.7rem !important;
+    }
+    
+    #debtsPage .status-impaye,
+    #debtsPage .status-partiel,
+    #debtsPage .status-paye {
+        padding: 3px 6px !important;
+        font-size: 0.65rem !important;
+        white-space: nowrap !important;
+    }
+    
+    #debtsPage .action-btn-small {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 0.7rem !important;
+    }
+    
+    #debtsPage .action-buttons {
+        gap: 3px !important;
+    }
+    
+    /* Rendre le tableau scrollable horizontalement */
+    #debtsPage .table-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    
+    #debtsPage .records-table {
+        min-width: 600px !important;
+    }
+}
     </style>
 </head>
 <body>
@@ -573,6 +1188,11 @@
                 <span style="font-size: 1.2rem; font-weight: bold;">Statistiques</span>
                 <small>Analyser les ventes</small>
             </button>
+          <button id="debtsBtn" class="action-btn">
+    <i class="fas fa-hand-holding-usd"></i>
+    <span style="font-size: 1.2rem; font-weight: bold;">Dettes Clients</span>
+    <small>Gérer les impayés</small>
+</button>
         </div>
     </div>
     
@@ -715,6 +1335,88 @@
             </button>
         </div>
     </div>
+  
+  
+  
+  <!-- Page Gestion des Dettes -->
+<div id="debtsPage" class="main-interface invoice-page" style="display: none;">
+    <button id="backFromDebtsBtn" class="back-btn">
+        <i class="fas fa-arrow-left"></i> Retour
+    </button>
+    
+    <h2 style="margin-bottom: 20px; color: #333;">
+        <i class="fas fa-hand-holding-usd"></i> Gestion des Dettes Clients
+    </h2>
+    
+    <!-- Filtres -->
+    <div class="client-info" style="margin-bottom: 20px;">
+        <div class="info-grid">
+            <div class="input-group">
+                <label>Filtrer par client</label>
+                <input type="text" id="debtSearchInput" class="form-input" placeholder="Nom ou téléphone...">
+            </div>
+            <div class="input-group">
+                <label>Statut</label>
+                <select id="debtStatusFilter" class="form-input">
+                    <option value="all">Tous</option>
+                    <option value="impaye">Impayés</option>
+                    <option value="partiel">Paiement partiel</option>
+                    <option value="paye">Payés</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>&nbsp;</label>
+                <button id="refreshDebtsBtn" class="btn btn-generate" style="background: #3B82F6;">
+                    <i class="fas fa-sync-alt"></i> Actualiser
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Liste des dettes -->
+    <div class="table-container" style="background: white; border-radius: 15px; overflow: hidden;">
+        <div class="table-wrapper">
+            <table class="records-table" style="width: 100%;">
+                <thead>
+                    <tr style="background: #f0f0f0;">
+                        <th>Client</th>
+                        <th>Téléphone</th>
+                        <th>N° Facture</th>
+                        <th>Date</th>
+                        <th>Total</th>
+                        <th>Payé</th>
+                        <th>Reste</th>
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="debtsTableBody">
+                    <tr><td colspan="9" style="text-align: center; padding: 40px;">Chargement...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Détail Dette -->
+<div id="debtDetailModal" class="modal-overlay" style="display: none; position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 20px; width: 90%; max-width: 600px; max-height: 85vh; overflow-y: auto; padding: 25px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: #333;"><i class="fas fa-file-invoice"></i> Détail de la dette</h3>
+            <button onclick="closeDebtModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+        <div id="debtDetailContent"></div>
+        <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
+            <button onclick="closeDebtModal()" class="btn btn-secondary">Fermer</button>
+            <button id="updateDebtPaymentBtn" class="btn btn-primary" style="background: #10b981;">
+                <i class="fas fa-save"></i> Enregistrer modification
+            </button>
+            <button id="printDebtPDFBtn" class="btn btn-generate">
+                <i class="fas fa-file-pdf"></i> Générer PDF
+            </button>
+        </div>
+    </div>
+</div>
 <script>
         // Configuration Firebase (LA MÊME QUE VOTRE SITE PRINCIPAL)
         const firebaseConfig = {
@@ -4503,6 +5205,303 @@ function fillInvoiceFormSimple(invoice) {
 }
 // setTimeout(startStockMonitoring, 1000);
 // ============================================================== 
+  
+  
+  // ==============================================
+// GESTION DES DETTES CLIENTS
+// ==============================================
+
+let currentDebtInvoice = null;
+let allInvoices = [];
+
+async function loadDebts() {
+    console.log("📋 Chargement des dettes...");
+    
+    const tbody = document.getElementById('debtsTableBody');
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;"><i class="fas fa-spinner fa-spin"></i> Chargement...</td></tr>';
+    
+    try {
+        const snapshot = await db.collection('invoices')
+            .where('boutique', '==', currentBoutique.id)
+            .get();
+        
+        allInvoices = [];
+        snapshot.forEach(doc => {
+            const inv = doc.data();
+            inv.id = doc.id;
+            allInvoices.push(inv);
+        });
+        
+        // Trier manuellement par date (plus récent en premier)
+        allInvoices.sort((a, b) => {
+            const dateA = a.date?.seconds ? a.date.seconds : 0;
+            const dateB = b.date?.seconds ? b.date.seconds : 0;
+            return dateB - dateA;
+        });
+        
+        applyDebtFilters();
+        console.log(`✅ ${allInvoices.length} factures chargées`);
+        
+    } catch (error) {
+        console.error("Erreur chargement dettes:", error);
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: red;">Erreur: ' + error.message + '</td></tr>';
+    }
+}
+
+// Appliquer les filtres
+function applyDebtFilters() {
+    const searchTerm = document.getElementById('debtSearchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('debtStatusFilter').value;
+    
+    let filtered = [...allInvoices];
+    
+    // Filtrer par recherche
+    if (searchTerm) {
+        filtered = filtered.filter(inv => 
+            (inv.client?.name || '').toLowerCase().includes(searchTerm) ||
+            (inv.client?.phone || '').toLowerCase().includes(searchTerm)
+        );
+    }
+    
+    // Filtrer par statut
+    if (statusFilter !== 'all') {
+        filtered = filtered.filter(inv => inv.paiement?.statut === statusFilter);
+    }
+    
+    // Trier par reste à payer (les plus gros en premier)
+    filtered.sort((a, b) => (b.paiement?.resteAPayer || 0) - (a.paiement?.resteAPayer || 0));
+    
+    displayDebtsTable(filtered);
+}
+
+// Afficher le tableau
+function displayDebtsTable(invoices) {
+    const tbody = document.getElementById('debtsTableBody');
+    
+    if (invoices.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px;">Aucune dette trouvée</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = '';
+    
+    invoices.forEach(inv => {
+        const paiement = inv.paiement || { montantPaye: 0, resteAPayer: inv.total || 0, statut: 'impaye' };
+        const date = inv.date?.seconds ? new Date(inv.date.seconds * 1000) : new Date(inv.date);
+        const dateStr = `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`;
+        
+        let statutClass = '';
+        let statutText = '';
+        if (paiement.statut === 'paye') {
+            statutClass = 'status-paye';
+            statutText = 'Payé';
+        } else if (paiement.statut === 'partiel') {
+            statutClass = 'status-partiel';
+            statutText = 'Partiel';
+        } else {
+            statutClass = 'status-impaye';
+            statutText = 'Impayé';
+        }
+        
+        const row = document.createElement('tr');
+        row.className = 'debt-row';
+        row.style.cursor = 'pointer';
+        row.innerHTML = `
+            <td><strong>${inv.client?.name || 'Anonyme'}</strong></td>
+            <td>${inv.client?.phone || '--'}</td>
+            <td>${inv.invoiceNumber || 'N/A'}</td>
+            <td>${dateStr}</td>
+            <td style="font-weight: bold;">${(inv.total || 0).toLocaleString('fr-FR')} F CFA</td>
+            <td style="color: #10b981;">${(paiement.montantPaye || 0).toLocaleString('fr-FR')} F CFA</td>
+            <td style="color: #dc2626; font-weight: bold;">${(paiement.resteAPayer || inv.total).toLocaleString('fr-FR')} F CFA</td>
+            <td><span class="${statutClass}">${statutText}</span></td>
+            <td>
+                <button class="action-btn-small view" onclick="event.stopPropagation(); showDebtDetail('${inv.id}')">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button class="action-btn-small edit" onclick="event.stopPropagation(); editDebtPayment('${inv.id}')">
+                    <i class="fas fa-edit"></i>
+                </button>
+            </td>
+        `;
+        
+        row.addEventListener('click', () => showDebtDetail(inv.id));
+        tbody.appendChild(row);
+    });
+}
+
+// Afficher le détail d'une dette
+async function showDebtDetail(invoiceId) {
+    const doc = await db.collection('invoices').doc(invoiceId).get();
+    if (!doc.exists) return;
+    
+    currentDebtInvoice = { id: doc.id, ...doc.data() };
+    const inv = currentDebtInvoice;
+    const paiement = inv.paiement || { montantPaye: 0, resteAPayer: inv.total || 0, modePaiement: 'especes', statut: 'impaye' };
+    
+    const date = inv.date?.seconds ? new Date(inv.date.seconds * 1000) : new Date(inv.date);
+    
+    let itemsHtml = '';
+    if (inv.items && inv.items.length > 0) {
+        itemsHtml = '<div style="margin: 15px 0;"><h4>Articles :</h4>';
+        inv.items.forEach(item => {
+            itemsHtml += `<div style="display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee;">
+                <span>${item.name} (${item.weight}) x ${item.quantity}</span>
+                <span>${(item.subtotal || 0).toLocaleString('fr-FR')} F CFA</span>
+            </div>`;
+        });
+        itemsHtml += '</div>';
+    }
+    
+    const content = `
+        <div style="margin-bottom: 20px;">
+            <p><strong>Client :</strong> ${inv.client?.name || 'Non renseigné'}</p>
+            <p><strong>Téléphone :</strong> ${inv.client?.phone || '--'}</p>
+            <p><strong>N° Facture :</strong> ${inv.invoiceNumber || 'N/A'}</p>
+            <p><strong>Date :</strong> ${date.toLocaleDateString('fr-FR')}</p>
+        </div>
+        
+        ${itemsHtml}
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; margin: 15px 0;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <span><strong>TOTAL FACTURE :</strong></span>
+                <span style="font-size: 1.2rem; font-weight: bold;">${(inv.total || 0).toLocaleString('fr-FR')} F CFA</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #10b981;">
+                <span><strong>Montant payé :</strong></span>
+                <span>${(paiement.montantPaye || 0).toLocaleString('fr-FR')} F CFA</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #dc2626;">
+                <span><strong>Reste à payer :</strong></span>
+                <span style="font-size: 1.1rem; font-weight: bold;">${(paiement.resteAPayer || inv.total).toLocaleString('fr-FR')} F CFA</span>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label><strong>Mode de paiement :</strong></label>
+            <select id="editModePaiement" class="form-input" style="margin-top: 5px;">
+                <option value="especes" ${paiement.modePaiement === 'especes' ? 'selected' : ''}>💵 Espèces</option>
+                <option value="wave" ${paiement.modePaiement === 'wave' ? 'selected' : ''}>📱 Wave</option>
+                <option value="orange" ${paiement.modePaiement === 'orange' ? 'selected' : ''}>📱 Orange Money</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label><strong>Montant payé (F CFA) :</strong></label>
+            <input type="number" id="editMontantPaye" class="form-input" value="${paiement.montantPaye || 0}" min="0" step="100" style="margin-top: 5px;">
+        </div>
+        
+        <div id="editStatutApercu" style="margin-top: 10px; padding: 8px; border-radius: 8px; text-align: center; font-weight: bold;"></div>
+    `;
+    
+    document.getElementById('debtDetailContent').innerHTML = content;
+    document.getElementById('debtDetailModal').style.display = 'flex';
+    
+    // Aperçu du statut
+    const updateStatutPreview = () => {
+        const montantPaye = parseInt(document.getElementById('editMontantPaye').value) || 0;
+        const total = inv.total || 0;
+        const reste = total - montantPaye;
+        const apercuDiv = document.getElementById('editStatutApercu');
+        
+        if (montantPaye === 0) {
+            apercuDiv.innerHTML = '⚠️ Statut : Impayé';
+            apercuDiv.style.background = '#fee2e2';
+            apercuDiv.style.color = '#dc2626';
+        } else if (montantPaye >= total) {
+            apercuDiv.innerHTML = '✅ Statut : Payé intégralement';
+            apercuDiv.style.background = '#d1fae5';
+            apercuDiv.style.color = '#059669';
+        } else {
+            apercuDiv.innerHTML = `⚠️ Statut : Paiement partiel (reste ${reste.toLocaleString('fr-FR')} F CFA)`;
+            apercuDiv.style.background = '#fef3c7';
+            apercuDiv.style.color = '#d97706';
+        }
+    };
+    
+    document.getElementById('editMontantPaye').addEventListener('input', updateStatutPreview);
+    updateStatutPreview();
+}
+
+// Modifier le paiement d'une dette
+async function editDebtPayment(invoiceId) {
+    await showDebtDetail(invoiceId);
+}
+
+// Enregistrer la modification
+document.getElementById('updateDebtPaymentBtn')?.addEventListener('click', async function() {
+    if (!currentDebtInvoice) return;
+    
+    const newMontantPaye = parseInt(document.getElementById('editMontantPaye').value) || 0;
+    const newModePaiement = document.getElementById('editModePaiement').value;
+    const total = currentDebtInvoice.total || 0;
+    const resteAPayer = Math.max(0, total - newMontantPaye);
+    
+    let statut = 'impaye';
+    if (newMontantPaye === 0) statut = 'impaye';
+    else if (newMontantPaye >= total) statut = 'paye';
+    else statut = 'partiel';
+    
+    const updateData = {
+        'paiement.montantPaye': newMontantPaye,
+        'paiement.resteAPayer': resteAPayer,
+        'paiement.modePaiement': newModePaiement,
+        'paiement.statut': statut,
+        'paiement.datePaiement': new Date().toISOString(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    
+    try {
+        await db.collection('invoices').doc(currentDebtInvoice.id).update(updateData);
+        showMessage('✅ Paiement mis à jour avec succès', 'success');
+        closeDebtModal();
+        loadDebts();
+    } catch (error) {
+        console.error('Erreur:', error);
+        showMessage('❌ Erreur lors de la mise à jour', 'error');
+    }
+});
+
+// Générer PDF de la dette
+document.getElementById('printDebtPDFBtn')?.addEventListener('click', function() {
+    if (currentDebtInvoice) {
+        // Utiliser la fonction generatePDF existante
+        const oldSelectedItems = selectedItems;
+        selectedItems = {};
+        if (currentDebtInvoice.items) {
+            currentDebtInvoice.items.forEach(item => {
+                selectedItems[item.id] = item;
+            });
+        }
+        generatePDF();
+        selectedItems = oldSelectedItems;
+    }
+});
+
+// Fermer le modal
+function closeDebtModal() {
+    document.getElementById('debtDetailModal').style.display = 'none';
+    currentDebtInvoice = null;
+}
+
+// Initialiser la page dettes
+function showDebtsPage() {
+    document.getElementById('mainInterface').style.display = 'none';
+    document.getElementById('invoicePage').style.display = 'none';
+    document.getElementById('debtsPage').style.display = 'block';
+    loadDebts();
+}
+
+// Événements
+document.getElementById('debtsBtn')?.addEventListener('click', showDebtsPage);
+document.getElementById('backFromDebtsBtn')?.addEventListener('click', function() {
+    document.getElementById('debtsPage').style.display = 'none';
+    document.getElementById('mainInterface').style.display = 'block';
+});
+document.getElementById('refreshDebtsBtn')?.addEventListener('click', loadDebts);
+document.getElementById('debtSearchInput')?.addEventListener('input', applyDebtFilters);
+document.getElementById('debtStatusFilter')?.addEventListener('change', applyDebtFilters);
     </script>
    
 </body>
