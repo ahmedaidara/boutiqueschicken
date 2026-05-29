@@ -361,11 +361,17 @@
     font-weight: bold;
 }
 
-/* Style boutique Sacré Coeur */
+/* Style boutique Sacré Coeur */ 
 .boutique-sacre-coeur .header {
     border-left: 5px solid #3B82F6;
 }
-
+/* Styles pour les 6 boutiques */
+.boutique-sacre-coeur-1 .header { border-left: 5px solid #3B82F6; }
+.boutique-keur-massar .header { border-left: 5px solid #10B981; }
+.boutique-sebikotane .header { border-left: 5px solid #F59E0B; }
+.boutique-front-terre .header { border-left: 5px solid #EF4444; }
+.boutique-sacre-coeur-3 .header { border-left: 5px solid #8B5CF6; }
+.boutique-en-ligne .header { border-left: 5px solid #EC4899; }
 /* Style boutique Keur Massar */
 .boutique-keur-massar .header {
     border-left: 5px solid #10B981;
@@ -1433,26 +1439,48 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         
-        // Configuration multi-boutique
+        // ancien+ you bess yi
         const BOUTIQUE_CONFIG = {
-            '8008': {
-                id: 'sacre-coeur',
-                name: 'SACRÉ COEUR 3',
-                phone: '77 77 77 77 77',
-                defaultCode: '8008'
-            },
-            '1001': {
-                id: 'keur-massar', 
-                name: 'KEUR MASSAR',
-                phone: '77 77 77 77 78',
-                defaultCode: '1001'
-            }
-        };
+    '1000': {
+        id: 'sacre-coeur-1',
+        name: 'SACRÉ COEUR 1',
+        phone: '77 777 77 77',
+        defaultCode: '1000'
+    },
+    '1001': {
+        id: 'keur-massar',
+        name: 'KEUR MASSAR',
+        phone: '77 777 77 78',
+        defaultCode: '1001'
+    },
+    '1002': {
+        id: 'sebikotane',
+        name: 'SEBIKOTANE',
+        phone: '77 777 77 79',
+        defaultCode: '1002'
+    },
+    '1003': {
+        id: 'front-terre',
+        name: 'FRONT DE TERRE',
+        phone: '77 777 77 80',
+        defaultCode: '1003'
+    },
+    '1004': {
+        id: 'sacre-coeur-3',
+        name: 'SACRÉ COEUR 3',
+        phone: '77 777 77 81',
+        defaultCode: '1004'
+    },
+    '1005': {
+        id: 'en-ligne',
+        name: 'TIKTOK SHOP',
+        phone: '77 777 77 82',
+        defaultCode: '1005'
+    }
+};
         
-        // Variables globales
         let currentBoutique = null;
          let montantResteSaisi = 0;
-// AJOUTER CES 3 LIGNES
 let modePaiementActuel = 'especes';
 let montantPayeActuel = 0;
 let statutPaiementDetaille = 'impaye';  
@@ -1639,53 +1667,61 @@ async function syncStockWithSales(stockAttribueId, boutiqueId) {
         }
         
         // Gestion de la connexion MULTI-BOUTIQUE
-        function handleLogin() {
-            const inputs = document.querySelectorAll('.code-input');
-            const enteredCode = Array.from(inputs).map(input => input.value).join('');
-            
-            // Vérifier d'abord les codes locaux
+       function handleLogin() {
+    const inputs = document.querySelectorAll('.code-input');
+    const enteredCode = Array.from(inputs).map(input => input.value).join('');
+    
+    // Vérifier d'abord les codes locaux
+    if (BOUTIQUE_CONFIG[enteredCode]) {
+        currentBoutique = BOUTIQUE_CONFIG[enteredCode];
+        loginSuccess();
+        return;
+    }
+    
+    // Sinon vérifier dans Firebase
+    db.collection('poulailler_settings').doc('boutique_codes').get()
+        .then(doc => {
+            if (doc.exists) {
+                const codes = doc.data();
+                
+                // Chercher quelle boutique correspond
+                if (codes.sacre_coeur_1 === enteredCode) {
+                    currentBoutique = BOUTIQUE_CONFIG['1000'];
+                } else if (codes.keur_massar === enteredCode) {
+                    currentBoutique = BOUTIQUE_CONFIG['1001'];
+                } else if (codes.sebikotane === enteredCode) {
+                    currentBoutique = BOUTIQUE_CONFIG['1002'];
+                } else if (codes.front_terre === enteredCode) {
+                    currentBoutique = BOUTIQUE_CONFIG['1003'];
+                } else if (codes.sacre_coeur_3 === enteredCode) {
+                    currentBoutique = BOUTIQUE_CONFIG['1004'];
+                } else if (codes.en_ligne === enteredCode) {
+                    currentBoutique = BOUTIQUE_CONFIG['1005'];
+                } else {
+                    showLoginError();
+                    return;
+                }
+                loginSuccess();
+            } else {
+                // Fallback aux codes par défaut
+                if (BOUTIQUE_CONFIG[enteredCode]) {
+                    currentBoutique = BOUTIQUE_CONFIG[enteredCode];
+                    loginSuccess();
+                } else {
+                    showLoginError();
+                }
+            }
+        })
+        .catch(() => {
+            // Fallback aux codes par défaut en cas d'erreur
             if (BOUTIQUE_CONFIG[enteredCode]) {
                 currentBoutique = BOUTIQUE_CONFIG[enteredCode];
                 loginSuccess();
-                return;
+            } else {
+                showLoginError();
             }
-            
-            // Sinon vérifier dans Firebase
-            db.collection('poulailler_settings').doc('boutique_codes').get()
-                .then(doc => {
-                    if (doc.exists) {
-                        const codes = doc.data();
-                        
-                        // Chercher quelle boutique correspond
-                        if (codes.sacre_coeur === enteredCode) {
-                            currentBoutique = BOUTIQUE_CONFIG['8008'];
-                            loginSuccess();
-                        } else if (codes.keur_massar === enteredCode) {
-                            currentBoutique = BOUTIQUE_CONFIG['1001'];
-                            loginSuccess();
-                        } else {
-                            showLoginError();
-                        }
-                    } else {
-                        // Fallback aux codes par défaut
-                        if (enteredCode === '8008' || enteredCode === '1001') {
-                            currentBoutique = BOUTIQUE_CONFIG[enteredCode];
-                            loginSuccess();
-                        } else {
-                            showLoginError();
-                        }
-                    }
-                })
-                .catch(() => {
-                    // Fallback aux codes par défaut en cas d'erreur
-                    if (enteredCode === '8008' || enteredCode === '1001') {
-                        currentBoutique = BOUTIQUE_CONFIG[enteredCode];
-                        loginSuccess();
-                    } else {
-                        showLoginError();
-                    }
-                });
-        }
+        });
+}
         
         // Connexion réussie
         function loginSuccess() {
