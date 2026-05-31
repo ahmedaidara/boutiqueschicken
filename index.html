@@ -1135,6 +1135,105 @@
         min-width: 600px !important;
     }
 }
+      
+      /* Styles pour la page Caisse */
+.caisse-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.caisse-stat-card {
+    background: linear-gradient(135deg, white 0%, #f8fafc 100%);
+    border-radius: 20px;
+    padding: 20px;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+    transition: transform 0.3s;
+}
+
+.caisse-stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.caisse-stat-card.especes {
+    border-top: 4px solid #10b981;
+}
+.caisse-stat-card.wave {
+    border-top: 4px solid #3b82f6;
+}
+.caisse-stat-card.orange {
+    border-top: 4px solid #f59e0b;
+}
+.caisse-stat-card.impaye {
+    border-top: 4px solid #ef4444;
+}
+.caisse-stat-card.total {
+    border-top: 4px solid #8b5cf6;
+}
+
+.caisse-stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin: 10px 0;
+}
+
+.caisse-stat-label {
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+.caisse-stat-icon {
+    font-size: 2rem;
+    margin-bottom: 10px;
+}
+
+.caisse-details {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    margin-top: 20px;
+    border: 1px solid #e2e8f0;
+}
+
+.caisse-details h4 {
+    margin-bottom: 15px;
+    color: #1e293b;
+}
+
+.caisse-details-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.caisse-details-table th,
+.caisse-details-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.caisse-details-table th {
+    background: #f1f5f9;
+    font-weight: 600;
+}
+
+.caisse-details-table tr:hover {
+    background: #f8fafc;
+}
+
+.caisse-period-info {
+    background: #f1f5f9;
+    padding: 10px 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
     </style>
 </head>
 <body>
@@ -1177,6 +1276,11 @@
         </div>
         
         <div class="buttons-grid">
+          <button id="caisseBtn" class="action-btn">
+    <i class="fas fa-cash-register"></i>
+    <span style="font-size: 1.2rem; font-weight: bold;">Caisse</span>
+    <small>Statistiques de paiement</small>
+</button>
            <button id="selectProductionBtn" class="action-btn">
     <i class="fas fa-clipboard-list"></i>
     <span style="font-size: 1.2rem; font-weight: bold;">Nouvelle Facture</span>
@@ -1410,6 +1514,69 @@
             <button id="printDebtPDFBtn" class="btn btn-generate">
                 <i class="fas fa-file-pdf"></i> Générer PDF
             </button>
+        </div>
+    </div>
+</div>
+  
+  <!-- Page Caisse / Statistiques de paiement -->
+<div id="caissePage" class="main-interface invoice-page" style="display: none;">
+    <button id="backFromCaisseBtn" class="back-btn">
+        <i class="fas fa-arrow-left"></i> Retour
+    </button>
+    
+    <h2 style="margin-bottom: 20px; color: #333;">
+        <i class="fas fa-cash-register"></i> Caisse - <span id="caisseBoutiqueName"></span>
+    </h2>
+    
+    <!-- Sélection de la production -->
+    <div class="client-info" style="margin-bottom: 20px;">
+        <h3 style="margin-bottom: 15px;">
+            <i class="fas fa-boxes"></i> Sélectionner une production
+        </h3>
+        <div class="info-grid">
+            <div class="input-group">
+                <label>Production</label>
+                <select id="caisseProductionSelect" class="form-input" style="padding: 12px;">
+                    <option value="">-- Chargement des productions --</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Période d'affichage -->
+    <div class="client-info" style="margin-bottom: 20px;">
+        <h3 style="margin-bottom: 15px;">
+            <i class="fas fa-calendar-alt"></i> Période
+        </h3>
+        <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px;">
+            <button id="caisseTodayBtn" class="btn" style="background: #667eea; color: white;">
+                <i class="fas fa-sun"></i> Aujourd'hui
+            </button>
+            <button id="caisseWeekBtn" class="btn" style="background: #8b5cf6; color: white;">
+                <i class="fas fa-calendar-week"></i> Cette semaine
+            </button>
+            <button id="caisseMonthBtn" class="btn" style="background: #10b981; color: white;">
+                <i class="fas fa-calendar-alt"></i> Ce mois
+            </button>
+        </div>
+        
+        <!-- Date personnalisée -->
+        <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+            <div class="input-group" style="flex: 1;">
+                <label>Date personnalisée</label>
+                <input type="date" id="caisseCustomDate" class="form-input">
+            </div>
+            <button id="caisseCustomBtn" class="btn" style="background: #f59e0b; color: white;">
+                <i class="fas fa-search"></i> Voir
+            </button>
+        </div>
+    </div>
+    
+    <!-- Résultats statistiques -->
+    <div id="caisseResults" style="margin-top: 20px;">
+        <div style="text-align: center; padding: 40px; color: #999;">
+            <i class="fas fa-chart-line" style="font-size: 3rem; margin-bottom: 15px;"></i>
+            <p>Sélectionnez une production et une période pour voir les statistiques</p>
         </div>
     </div>
 </div>
@@ -5616,6 +5783,459 @@ function closeDebtModal() {
     currentDebtInvoice = null;
 }
 
+  
+  
+  // ==============================================
+// PAGE CAISSE - STATISTIQUES DE PAIEMENT
+// ==============================================
+
+let caisseProductions = [];
+let caisseCurrentProductionId = null;
+let caisseCurrentPeriod = 'today';
+let caisseCurrentDate = new Date();
+
+// Fonction pour charger les productions disponibles
+async function loadCaisseProductions() {
+    console.log("📦 Chargement des productions pour la caisse...");
+    
+    const select = document.getElementById('caisseProductionSelect');
+    select.innerHTML = '<option value="">-- Chargement... --</option>';
+    
+    try {
+        // Charger toutes les productions
+        const snapshot = await db.collection('poulailler_records')
+            .orderBy('startDate', 'desc')
+            .get();
+        
+        caisseProductions = [];
+        
+        snapshot.forEach(doc => {
+            const prod = doc.data();
+            const date = prod.startDate ? new Date(prod.startDate) : new Date();
+            const dateStr = `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`;
+            
+            caisseProductions.push({
+                id: doc.id,
+                startDate: date,
+                dateStr: dateStr,
+                totalPoulets: prod.initialStock || 0
+            });
+        });
+        
+        // Remplir le select
+        select.innerHTML = '<option value="">-- Sélectionner une production --</option>';
+        
+        caisseProductions.forEach(prod => {
+            const option = document.createElement('option');
+            option.value = prod.id;
+            option.textContent = `Production du ${prod.dateStr} - ${prod.totalPoulets} poulets`;
+            select.appendChild(option);
+        });
+        
+        if (caisseProductions.length === 0) {
+            select.innerHTML = '<option value="">-- Aucune production disponible --</option>';
+        }
+        
+        console.log(`✅ ${caisseProductions.length} productions chargées`);
+        
+    } catch (error) {
+        console.error("Erreur chargement productions:", error);
+        select.innerHTML = '<option value="">-- Erreur de chargement --</option>';
+    }
+}
+
+// Fonction pour charger TOUTES les factures d'une production spécifique
+async function loadInvoicesForProduction(productionId) {
+    if (!productionId) return [];
+    
+    console.log(`📋 Chargement factures pour production: ${productionId}`);
+    
+    try {
+        // Récupérer d'abord le stock attribué pour cette production
+        const stocksSnapshot = await db.collection('stocks_attribues')
+            .where('productionId', '==', productionId)
+            .where('boutique', '==', currentBoutique.id)
+            .get();
+        
+        if (stocksSnapshot.empty) {
+            console.log("Aucun stock attribué trouvé pour cette production");
+            return [];
+        }
+        
+        // Récupérer tous les IDs de stock
+        const stockIds = [];
+        stocksSnapshot.forEach(doc => {
+            stockIds.push(doc.id);
+        });
+        
+        // Récupérer toutes les factures liées à ces stocks
+        const allInvoices = [];
+        
+        for (const stockId of stockIds) {
+            const invoicesSnapshot = await db.collection('invoices')
+                .where('stockAttribueId', '==', stockId)
+                .get();
+            
+            invoicesSnapshot.forEach(doc => {
+                allInvoices.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+        }
+        
+        console.log(`📊 ${allInvoices.length} factures trouvées pour cette production`);
+        return allInvoices;
+        
+    } catch (error) {
+        console.error("Erreur chargement factures:", error);
+        return [];
+    }
+}
+
+// Fonction pour filtrer les factures par date
+function filterInvoicesByDate(invoices, period, customDate = null) {
+    const now = new Date();
+    let startDate, endDate;
+    
+    // Définir la plage de dates
+    if (period === 'today') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    } 
+    else if (period === 'week') {
+        const dayOfWeek = now.getDay();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+        startOfWeek.setHours(0, 0, 0, 0);
+        
+        startDate = startOfWeek;
+        endDate = new Date(startOfWeek);
+        endDate.setDate(startOfWeek.getDate() + 7);
+    }
+    else if (period === 'month') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    }
+    else if (period === 'custom' && customDate) {
+        startDate = new Date(customDate);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(customDate);
+        endDate.setHours(23, 59, 59, 999);
+    }
+    
+    // Filtrer les factures
+    return invoices.filter(inv => {
+        let invoiceDate;
+        if (inv.date && inv.date.seconds) {
+            invoiceDate = new Date(inv.date.seconds * 1000);
+        } else if (inv.date) {
+            invoiceDate = new Date(inv.date);
+        } else {
+            return false;
+        }
+        
+        return invoiceDate >= startDate && invoiceDate < endDate;
+    });
+}
+
+// Fonction pour calculer les statistiques à partir des factures
+function calculateCaisseStats(invoices) {
+    let especes = 0;
+    let wave = 0;
+    let orangeMoney = 0;
+    let impaye = 0;  // Montant total des impayés
+    let totalFactures = 0;
+    let totalPaye = 0;
+    
+    invoices.forEach(inv => {
+        const paiement = inv.paiement || { montantPaye: 0, modePaiement: 'especes', statut: 'impaye' };
+        const montantPaye = paiement.montantPaye || 0;
+        const totalFacture = inv.total || 0;
+        const resteAPayer = totalFacture - montantPaye;
+        
+        totalFactures += totalFacture;
+        totalPaye += montantPaye;
+        
+        // Ajouter à la catégorie correspondante
+        if (montantPaye > 0) {
+            if (paiement.modePaiement === 'especes') {
+                especes += montantPaye;
+            } else if (paiement.modePaiement === 'wave') {
+                wave += montantPaye;
+            } else if (paiement.modePaiement === 'orange') {
+                orangeMoney += montantPaye;
+            }
+        }
+        
+        // Ajouter le reste à payer (impayé)
+        impaye += resteAPayer;
+    });
+    
+    return {
+        especes: especes,
+        wave: wave,
+        orangeMoney: orangeMoney,
+        impaye: impaye,
+        totalPaye: totalPaye,
+        totalFactures: totalFactures,
+        nbFactures: invoices.length
+    };
+}
+
+// Fonction pour afficher les statistiques 
+function displayCaisseStats(stats, period, invoices, productionName) {
+    const container = document.getElementById('caisseResults');
+    
+    // Formater le texte de la période
+    let periodText = '';
+    if (period === 'today') periodText = "Aujourd'hui";
+    else if (period === 'week') periodText = "Cette semaine";
+    else if (period === 'month') periodText = "Ce mois";
+    else periodText = "Date sélectionnée";
+    
+    // Afficher les détails des factures
+    let detailsHtml = '';
+    if (invoices.length > 0) {
+        detailsHtml = `
+            <div class="caisse-details">
+                <h4><i class="fas fa-list"></i> Détail des ventes (${invoices.length} factures)</h4>
+                <div style="overflow-x: auto;">
+                    <table class="caisse-details-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>N° Facture</th>
+                                <th>Client</th>
+                                <th>Total</th>
+                                <th>Payé</th>
+                                <th>Mode</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+        
+        // Trier par date (plus récent d'abord)
+        const sortedInvoices = [...invoices].sort((a, b) => {
+            const dateA = a.date?.seconds ? a.date.seconds : 0;
+            const dateB = b.date?.seconds ? b.date.seconds : 0;
+            return dateB - dateA;
+        });
+        
+        sortedInvoices.forEach(inv => {
+            const paiement = inv.paiement || { montantPaye: 0, modePaiement: 'especes', statut: 'impaye' };
+            let date;
+            if (inv.date && inv.date.seconds) {
+                date = new Date(inv.date.seconds * 1000);
+            } else {
+                date = new Date(inv.date);
+            }
+            
+            const dateStr = `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`;
+            
+            let modeIcon = '';
+            if (paiement.modePaiement === 'especes') modeIcon = '💵';
+            else if (paiement.modePaiement === 'wave') modeIcon = '📱';
+            else modeIcon = '📱';
+            
+            let statutClass = '';
+            let statutText = '';
+            if (paiement.statut === 'paye') {
+                statutClass = 'status-paye';
+                statutText = 'Payé';
+            } else if (paiement.statut === 'partiel') {
+                statutClass = 'status-partiel';
+                statutText = 'Partiel';
+            } else {
+                statutClass = 'status-impaye';
+                statutText = 'Impayé';
+            }
+            
+            detailsHtml += `
+                <tr>
+                    <td>${dateStr}</td>
+                    <td>${inv.invoiceNumber || 'N/A'}</td>
+                    <td>${inv.client?.name || 'Anonyme'}</td>
+                    <td>${(inv.total || 0).toLocaleString('fr-FR')} F CFA</td>
+                    <td style="color: #10b981;">${(paiement.montantPaye || 0).toLocaleString('fr-FR')} F CFA</td>
+                    <td>${modeIcon} ${paiement.modePaiement === 'especes' ? 'Espèces' : paiement.modePaiement === 'wave' ? 'Wave' : 'Orange'}</td>
+                    <td><span class="${statutClass}">${statutText}</span></td>
+                </tr>
+            `;
+        });
+        
+        detailsHtml += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    } else {
+        detailsHtml = `
+            <div class="caisse-details">
+                <div style="text-align: center; padding: 40px; color: #999;">
+                    <i class="fas fa-receipt" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                    <p>Aucune vente enregistrée pour cette période</p>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Afficher les résultats
+    const html = `
+        <div class="caisse-period-info">
+            <span><i class="fas fa-calendar"></i> <strong>Période:</strong> ${periodText}</span>
+            <span><i class="fas fa-chart-simple"></i> <strong>${stats.nbFactures}</strong> factures</span>
+        </div>
+        
+        <div class="caisse-stats-grid">
+            <div class="caisse-stat-card especes">
+                <div class="caisse-stat-icon">💵</div>
+                <div class="caisse-stat-value">${stats.especes.toLocaleString('fr-FR')} F CFA</div>
+                <div class="caisse-stat-label">Espèces</div>
+            </div>
+            
+            <div class="caisse-stat-card wave">
+                <div class="caisse-stat-icon">📱</div>
+                <div class="caisse-stat-value">${stats.wave.toLocaleString('fr-FR')} F CFA</div>
+                <div class="caisse-stat-label">Wave</div>
+            </div>
+            
+            <div class="caisse-stat-card orange">
+                <div class="caisse-stat-icon">📱</div>
+                <div class="caisse-stat-value">${stats.orangeMoney.toLocaleString('fr-FR')} F CFA</div>
+                <div class="caisse-stat-label">Orange Money</div>
+            </div>
+            
+            <div class="caisse-stat-card impaye">
+                <div class="caisse-stat-icon">⚠️</div>
+                <div class="caisse-stat-value">${stats.impaye.toLocaleString('fr-FR')} F CFA</div>
+                <div class="caisse-stat-label">Impayés / Reste à payer</div>
+            </div>
+            
+            <div class="caisse-stat-card total">
+                <div class="caisse-stat-icon">💰</div>
+                <div class="caisse-stat-value">${stats.totalPaye.toLocaleString('fr-FR')} F CFA</div>
+                <div class="caisse-stat-label">Total encaissé</div>
+            </div>
+        </div>
+        
+        ${detailsHtml}
+    `;
+    
+    container.innerHTML = html;
+}
+
+// Fonction principale pour rafraîchir les statistiques
+async function refreshCaisseStats() {
+    const productionId = caisseCurrentProductionId;
+    const period = caisseCurrentPeriod;
+    const customDate = document.getElementById('caisseCustomDate').value;
+    
+    if (!productionId) {
+        document.getElementById('caisseResults').innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #999;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                <p>Veuillez sélectionner une production</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Afficher le chargement
+    document.getElementById('caisseResults').innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #667eea;"></i>
+            <p>Chargement des statistiques...</p>
+        </div>
+    `;
+    
+    try {
+        // Charger toutes les factures de la production
+        const allInvoices = await loadInvoicesForProduction(productionId);
+        
+        // Filtrer par date
+        let filteredInvoices;
+        if (period === 'custom' && customDate) {
+            filteredInvoices = filterInvoicesByDate(allInvoices, 'custom', customDate);
+        } else {
+            filteredInvoices = filterInvoicesByDate(allInvoices, period);
+        }
+        
+        // Calculer les statistiques
+        const stats = calculateCaisseStats(filteredInvoices);
+        
+        // Trouver le nom de la production
+        const production = caisseProductions.find(p => p.id === productionId);
+        const productionName = production ? `Production du ${production.dateStr}` : 'Production';
+        
+        // Afficher les résultats
+        displayCaisseStats(stats, period, filteredInvoices, productionName);
+        
+    } catch (error) {
+        console.error("Erreur:", error);
+        document.getElementById('caisseResults').innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #ef4444;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                <p>Erreur: ${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+// Afficher la page Caisse
+function showCaissePage() {
+    document.getElementById('mainInterface').style.display = 'none';
+    document.getElementById('invoicePage').style.display = 'none';
+    document.getElementById('debtsPage').style.display = 'none';
+    document.getElementById('caissePage').style.display = 'block';
+    
+    document.getElementById('caisseBoutiqueName').textContent = currentBoutique.name;
+    
+    // Charger les productions
+    loadCaisseProductions();
+}
+
+// Événements de la page Caisse
+document.getElementById('caisseBtn')?.addEventListener('click', showCaissePage);
+
+document.getElementById('backFromCaisseBtn')?.addEventListener('click', function() {
+    document.getElementById('caissePage').style.display = 'none';
+    document.getElementById('mainInterface').style.display = 'block';
+});
+
+document.getElementById('caisseProductionSelect')?.addEventListener('change', function(e) {
+    caisseCurrentProductionId = e.target.value;
+    if (caisseCurrentProductionId) {
+        refreshCaisseStats();
+    }
+});
+
+document.getElementById('caisseTodayBtn')?.addEventListener('click', function() {
+    caisseCurrentPeriod = 'today';
+    refreshCaisseStats();
+});
+
+document.getElementById('caisseWeekBtn')?.addEventListener('click', function() {
+    caisseCurrentPeriod = 'week';
+    refreshCaisseStats();
+});
+
+document.getElementById('caisseMonthBtn')?.addEventListener('click', function() {
+    caisseCurrentPeriod = 'month';
+    refreshCaisseStats();
+});
+
+document.getElementById('caisseCustomBtn')?.addEventListener('click', function() {
+    const customDate = document.getElementById('caisseCustomDate').value;
+    if (customDate) {
+        caisseCurrentPeriod = 'custom';
+        refreshCaisseStats();
+    } else {
+        showMessage('Veuillez sélectionner une date', 'error');
+    }
+});
 // Initialiser la page dettes
 function showDebtsPage() {
     document.getElementById('mainInterface').style.display = 'none';
