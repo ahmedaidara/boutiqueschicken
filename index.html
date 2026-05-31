@@ -2000,7 +2000,12 @@ function setupEventListeners() {
                 showMessage('Modification annulée', 'warning');
             }
         });
-    }
+    } 
+  // Ajouter l'écouteur pour le bouton de versement
+const verserBtn = document.getElementById('btnVerser');
+if (verserBtn) {
+    verserBtn.addEventListener('click', enregistrerVersement);
+}
     // BOUTON ENREGISTRER
     const saveBtn = document.getElementById('saveBtn');
     let saveLock = false;
