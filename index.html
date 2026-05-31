@@ -6099,8 +6099,8 @@ versSnapshot.forEach(doc => {
 });
 console.log('Total verse final:', totalVerse);
                 
-                // Utiliser UNIQUEMENT le montant en espèces pour le versement
-const totalEspeces = stats.especes;  // ← Seulement les espèces
+                // Utiliser UNIQUEMENT le montant en espèces pour le versement 
+const totalEspeces = stats.especes;  // ← Seulement les espèces 
 const reste = Math.max(0, totalEspeces - totalVerse);
                 
                 document.getElementById('versTotalEncaisse').innerHTML = stats.especes.toLocaleString('fr-FR') + ' F CFA';
@@ -6309,4 +6309,4 @@ document.getElementById('debtStatusFilter')?.addEventListener('change', applyDeb
     </script>
    
 </body>
-</html>  
+</html>   
