@@ -1579,9 +1579,38 @@
             <p>Sélectionnez une production et une période pour voir les statistiques</p>
         </div>
     </div>
+  <!-- ===== SECTION VERSEMENT POUR LA GÉRANTE ===== -->
+<div id="versementGerantSection" style="margin-top: 30px; background: #f0fdf4; border-radius: 15px; padding: 20px; border-left: 4px solid #10b981; display: none;">
+    <h3 style="margin-bottom: 15px; color: #065f46;">
+        <i class="fas fa-hand-holding-usd"></i> 💰 Versement de la caisse
+    </h3>
+    
+    <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span><strong>💰 Total encaissé en espece :</strong></span>
+            <span id="versTotalEncaisse" style="color: #10b981; font-weight: bold;">0 F CFA</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span><strong>🏦 Déjà versé :</strong></span>
+            <span id="versDejaVerse" style="color: #3b82f6; font-weight: bold;">0 F CFA</span>
+        </div>
+        <div style="border-top: 1px solid #e0e0e0; padding-top: 8px; display: flex; justify-content: space-between;">
+            <span><strong>⚠️ Reste à verser :</strong></span>
+            <span id="versReste" style="color: #f59e0b; font-weight: bold;">0 F CFA</span>
+        </div>
+    </div>
+    
+    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+        <input type="number" id="versMontant" placeholder="Montant à verser" style="flex: 2; padding: 12px; border-radius: 10px; border: 1px solid #cbd5e1;">
+        <input type="text" id="versCommentaire" placeholder="Commentaire (optionnel)" style="flex: 2; padding: 12px; border-radius: 10px; border: 1px solid #cbd5e1;">
+        <button id="btnVerser" style="flex: 1; background: #10b981; color: white; border: none; border-radius: 10px; cursor: pointer;">
+            <i class="fas fa-save"></i> Enregistrer
+        </button>
+    </div>
+</div>
 </div>
 <script>
-        // Configuration Firebase (LA MÊME QUE VOTRE SITE PRINCIPAL)
+        // Configuration Firebase (LA MÊME QUE VOTRE SI TE PRINCIPAL)
         const firebaseConfig = {
             apiKey: "AIzaSyAAQ9G3w94aM7iGc_ufHMzdCvrwzzEzlhI",
             authDomain: "poulailler-3515e.firebaseapp.com",
@@ -5987,146 +6016,170 @@ function calculateCaisseStats(invoices) {
 function displayCaisseStats(stats, period, invoices, productionName) {
     const container = document.getElementById('caisseResults');
     
-    // Formater le texte de la période
     let periodText = '';
     if (period === 'today') periodText = "Aujourd'hui";
     else if (period === 'week') periodText = "Cette semaine";
     else if (period === 'month') periodText = "Ce mois";
     else periodText = "Date sélectionnée";
     
-    // Afficher les détails des factures
     let detailsHtml = '';
     if (invoices.length > 0) {
         detailsHtml = `
             <div class="caisse-details">
-                <h4><i class="fas fa-list"></i> Détail des ventes (${invoices.length} factures)</h4>
+                <h4>Détail des ventes (${invoices.length} factures)</h4>
                 <div style="overflow-x: auto;">
                     <table class="caisse-details-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>N° Facture</th>
-                                <th>Client</th>
-                                <th>Total</th>
-                                <th>Payé</th>
-                                <th>Mode</th>
-                                <th>Statut</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>Date</th><th>N° Facture</th><th>Client</th><th>Total</th><th>Payé</th><th>Mode</th><th>Statut</th></tr></thead>
                         <tbody>
         `;
-        
-        // Trier par date (plus récent d'abord)
-        const sortedInvoices = [...invoices].sort((a, b) => {
-            const dateA = a.date?.seconds ? a.date.seconds : 0;
-            const dateB = b.date?.seconds ? b.date.seconds : 0;
-            return dateB - dateA;
-        });
-        
+        const sortedInvoices = [...invoices].sort((a,b) => (b.date?.seconds||0) - (a.date?.seconds||0));
         sortedInvoices.forEach(inv => {
-            const paiement = inv.paiement || { montantPaye: 0, modePaiement: 'especes', statut: 'impaye' };
-            let date;
-            if (inv.date && inv.date.seconds) {
-                date = new Date(inv.date.seconds * 1000);
-            } else {
-                date = new Date(inv.date);
-            }
-            
-            const dateStr = `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`;
-            
-            let modeIcon = '';
-            if (paiement.modePaiement === 'especes') modeIcon = '💵';
-            else if (paiement.modePaiement === 'wave') modeIcon = '📱';
-            else modeIcon = '📱';
-            
-            let statutClass = '';
-            let statutText = '';
-            if (paiement.statut === 'paye') {
-                statutClass = 'status-paye';
-                statutText = 'Payé';
-            } else if (paiement.statut === 'partiel') {
-                statutClass = 'status-partiel';
-                statutText = 'Partiel';
-            } else {
-                statutClass = 'status-impaye';
-                statutText = 'Impayé';
-            }
-            
-            detailsHtml += `
-                <tr>
-                    <td>${dateStr}</td>
-                    <td>${inv.invoiceNumber || 'N/A'}</td>
-                    <td>${inv.client?.name || 'Anonyme'}</td>
-                    <td>${(inv.total || 0).toLocaleString('fr-FR')} F CFA</td>
-                    <td style="color: #10b981;">${(paiement.montantPaye || 0).toLocaleString('fr-FR')} F CFA</td>
-                    <td>${modeIcon} ${paiement.modePaiement === 'especes' ? 'Espèces' : paiement.modePaiement === 'wave' ? 'Wave' : 'Orange'}</td>
-                    <td><span class="${statutClass}">${statutText}</span></td>
-                </tr>
-            `;
+            const p = inv.paiement || { montantPaye:0, modePaiement:'especes', statut:'impaye' };
+            let date = inv.date?.seconds ? new Date(inv.date.seconds*1000) : new Date(inv.date);
+            let modeIcon = p.modePaiement === 'especes' ? '💵' : '📱';
+            let modeTexte = p.modePaiement === 'especes' ? 'Espèces' : (p.modePaiement === 'wave' ? 'Wave' : 'Orange');
+            let statutTexte = p.statut === 'paye' ? 'Payé' : (p.statut === 'partiel' ? 'Partiel' : 'Impayé');
+            let statutClass = p.statut === 'paye' ? 'status-paye' : (p.statut === 'partiel' ? 'status-partiel' : 'status-impaye');
+            detailsHtml += `<tr>
+                <td>${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}</td>
+                <td>${inv.invoiceNumber||'N/A'}</td>
+                <td>${inv.client?.name||'Anonyme'}</td>
+                <td>${(inv.total||0).toLocaleString('fr-FR')} F</td>
+                <td style="color:#10b981;">${(p.montantPaye||0).toLocaleString('fr-FR')} F</td>
+                <td>${modeIcon} ${modeTexte}</td>
+                <td><span class="${statutClass}">${statutTexte}</span></td>
+            </tr>`;
         });
-        
-        detailsHtml += `
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
+        detailsHtml += `</tbody></table></div></div>`;
     } else {
-        detailsHtml = `
-            <div class="caisse-details">
-                <div style="text-align: center; padding: 40px; color: #999;">
-                    <i class="fas fa-receipt" style="font-size: 2rem; margin-bottom: 10px;"></i>
-                    <p>Aucune vente enregistrée pour cette période</p>
-                </div>
-            </div>
-        `;
+        detailsHtml = `<div class="caisse-details"><div style="text-align:center;padding:40px;">Aucune vente</div></div>`;
     }
     
-    // Afficher les résultats
     const html = `
         <div class="caisse-period-info">
-            <span><i class="fas fa-calendar"></i> <strong>Période:</strong> ${periodText}</span>
-            <span><i class="fas fa-chart-simple"></i> <strong>${stats.nbFactures}</strong> factures</span>
+            <span><strong>Période:</strong> ${periodText}</span>
+            <span><strong>${stats.nbFactures}</strong> factures</span>
         </div>
-        
         <div class="caisse-stats-grid">
-            <div class="caisse-stat-card especes">
-                <div class="caisse-stat-icon">💵</div>
+            <div class="caisse-stat-card especes"><div class="caisse-stat-icon">💵</div>
                 <div class="caisse-stat-value">${stats.especes.toLocaleString('fr-FR')} F CFA</div>
-                <div class="caisse-stat-label">Espèces</div>
-            </div>
-            
-            <div class="caisse-stat-card wave">
-                <div class="caisse-stat-icon">📱</div>
+                <div class="caisse-stat-label">Espèces</div></div>
+            <div class="caisse-stat-card wave"><div class="caisse-stat-icon">📱</div>
                 <div class="caisse-stat-value">${stats.wave.toLocaleString('fr-FR')} F CFA</div>
-                <div class="caisse-stat-label">Wave</div>
-            </div>
-            
-            <div class="caisse-stat-card orange">
-                <div class="caisse-stat-icon">📱</div>
+                <div class="caisse-stat-label">Wave</div></div>
+            <div class="caisse-stat-card orange"><div class="caisse-stat-icon">📱</div>
                 <div class="caisse-stat-value">${stats.orangeMoney.toLocaleString('fr-FR')} F CFA</div>
-                <div class="caisse-stat-label">Orange Money</div>
-            </div>
-            
-            <div class="caisse-stat-card impaye">
-                <div class="caisse-stat-icon">⚠️</div>
+                <div class="caisse-stat-label">Orange Money</div></div>
+            <div class="caisse-stat-card impaye"><div class="caisse-stat-icon">⚠️</div>
                 <div class="caisse-stat-value">${stats.impaye.toLocaleString('fr-FR')} F CFA</div>
-                <div class="caisse-stat-label">Impayés / Reste à payer</div>
-            </div>
-            
-            <div class="caisse-stat-card total">
-                <div class="caisse-stat-icon">💰</div>
+                <div class="caisse-stat-label">Impayés / Reste</div></div>
+            <div class="caisse-stat-card total"><div class="caisse-stat-icon">💰</div>
                 <div class="caisse-stat-value">${stats.totalPaye.toLocaleString('fr-FR')} F CFA</div>
-                <div class="caisse-stat-label">Total encaissé</div>
-            </div>
+                <div class="caisse-stat-label">Total encaissé</div></div>
         </div>
-        
         ${detailsHtml}
     `;
     
     container.innerHTML = html;
+    
+    // ========== AFFICHER LA SECTION VERSEMENT (SANS AWAIT) ==========
+    const versSection = document.getElementById('versementGerantSection');
+    if (versSection && stats.totalPaye > 0 && caisseCurrentProductionId) {
+        // Récupérer les versements déjà faits (PROMESSE)
+        db.collection('versements')
+            .where('boutiqueId', '==', currentBoutique.id)
+            .where('productionId', '==', caisseCurrentProductionId)
+            .get()
+            .then(versSnapshot => {
+                let totalVerse = 0;
+versSnapshot.forEach(doc => { 
+    const montantVerse = doc.data().montant || 0;
+    totalVerse += montantVerse;
+    console.log('Versement trouvé:', montantVerse, 'Total:', totalVerse);
+});
+console.log('Total verse final:', totalVerse);
+                
+                // Utiliser UNIQUEMENT le montant en espèces pour le versement
+const totalEspeces = stats.especes;  // ← Seulement les espèces
+const reste = Math.max(0, totalEspeces - totalVerse);
+                
+                document.getElementById('versTotalEncaisse').innerHTML = stats.especes.toLocaleString('fr-FR') + ' F CFA';
+                document.getElementById('versDejaVerse').innerHTML = totalVerse.toLocaleString('fr-FR') + ' F CFA';
+                document.getElementById('versReste').innerHTML = reste.toLocaleString('fr-FR') + ' F CFA';
+                
+                const montantInput = document.getElementById('versMontant');
+                if (montantInput) { montantInput.value = reste; montantInput.max = reste; }
+                
+                versSection.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Erreur chargement versements:', error);
+                versSection.style.display = 'block';
+            });
+    } else if (versSection) {
+        versSection.style.display = 'none';
+    }
 }
-
+// Enregistrer un versement
+// Enregistrer un versement (VERSION CORRIGÉE - PAS DE DOUBLE)
+function enregistrerVersement() {
+    // Éviter les doubles clics
+    const btn = document.getElementById('btnVerser');
+    if (btn.disabled) return;
+    
+    const montant = parseInt(document.getElementById('versMontant').value) || 0;
+    const commentaire = document.getElementById('versCommentaire').value || '';
+    
+    // Récupérer le reste à verser depuis l'affichage
+    const resteText = document.getElementById('versReste').innerText;
+    const resteActuel = parseInt(resteText.replace(/\D/g, '')) || 0;
+    
+    // Validation
+    if (montant <= 0) { 
+        showMessage('Entrez un montant valide', 'error'); 
+        return; 
+    }
+    
+    if (montant > resteActuel) { 
+        showMessage(`Montant trop élevé ! Reste à verser: ${resteActuel.toLocaleString('fr-FR')} F CFA`, 'error'); 
+        return; 
+    }
+    
+    // Désactiver le bouton pour éviter double clic
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enregistrement...';
+    
+    // Ajouter le versement
+    db.collection('versements').add({
+        boutiqueId: currentBoutique.id,
+        boutiqueName: currentBoutique.name,
+        productionId: caisseCurrentProductionId,
+        montant: montant,
+        commentaire: commentaire || `Versement du ${new Date().toLocaleDateString('fr-FR')}`,
+        date: firebase.firestore.FieldValue.serverTimestamp()
+    })
+    .then(() => {
+        showMessage(`✅ ${montant.toLocaleString('fr-FR')} F CFA versé !`, 'success');
+        
+        // Vider le commentaire mais garder le montant à 0
+        document.getElementById('versCommentaire').value = '';
+        document.getElementById('versMontant').value = '0';
+        
+        // Rafraîchir les stats (recharger les ver sements)
+        refreshCaisseStats();
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        showMessage('Erreur lors du versement', 'error');
+    })
+    .finally(() => {
+        // Réactiver le bouton après 1 seconde
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save"></i> Enregistrer';
+        }, 1000);
+    });
+}
 // Fonction principale pour rafraîchir les statistiques
 async function refreshCaisseStats() {
     const productionId = caisseCurrentProductionId;
