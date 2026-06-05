@@ -1744,7 +1744,89 @@ let statutPaiementDetaille = 'impaye';
             total: 0,
             date: new Date()
         };
+  // Définition des catégories (GLOBALE)
+const CATEGORIES_LIST = [
+    { id: '1', name: "Très petits", weight: "1.0-1.1 kg", prix: 2000 },
+    { id: '2', name: "Petits", weight: "1.2 kg", prix: 2500 },
+    { id: '3', name: "Moyens-petits", weight: "1.3-1.4 kg", prix: 3000 },
+    { id: '4', name: "Moyens", weight: "1.5-1.6 kg", prix: 3300 },
+    { id: '5', name: "Moyens-grands", weight: "1.7-1.9 kg", prix: 3500 },
+    { id: '6', name: "Grands", weight: "2.0 kg", prix: 3700 },
+    { id: '7', name: "Très grands", weight: "2.1-2.3 kg", prix: 4000 },
+    { id: '8', name: "Géants", weight: "+2.4 kg", prix: 4500 }
+];
+
   
+  // ========== FONCTIONS DE SECOURS POUR L'AFFICHAGE DES CATÉGORIES ==========
+
+// Afficher les catégories directement (sans attendre Firebase)
+function showCategoriesDirectly() {
+    console.log('🟢 Affichage direct des catégories');
+    
+    const container = document.getElementById('categoriesContainer');
+    if (!container) {
+        console.error('Container non trouvé');
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    // Les 8 catégories
+    const categoriesList = [
+        { id: '1', name: 'Très petits', weight: '1.0-1.1 kg', price: 2000 },
+        { id: '2', name: 'Petits', weight: '1.2 kg', price: 2500 },
+        { id: '3', name: 'Moyens-petits', weight: '1.3-1.4 kg', price: 3000 },
+        { id: '4', name: 'Moyens', weight: '1.5-1.6 kg', price: 3300 },
+        { id: '5', name: 'Moyens-grands', weight: '1.7-1.9 kg', price: 3500 },
+        { id: '6', name: 'Grands', weight: '2.0 kg', price: 3700 },
+        { id: '7', name: 'Très grands', weight: '2.1-2.3 kg', price: 4000 },
+        { id: '8', name: 'Géants', weight: '+2.4 kg', price: 4500 }
+    ];
+    
+    categoriesList.forEach(cat => {
+        const card = document.createElement('div');
+        card.className = 'category-card';
+        card.style.borderColor = currentBoutique?.id === 'sacre-coeur' ? '#3B82F6' : '#10B981';
+        card.innerHTML = `
+            <div class="category-header">
+                <div class="category-name">${cat.id}. ${cat.name}</div>
+                <div class="category-price">${cat.price.toLocaleString('fr-FR')} F CFA</div>
+            </div>
+            <div style="color: #666; margin-bottom: 10px; font-size: 0.9rem;">
+                ${cat.weight}
+            </div>
+            <div style="background: #f0fdf4; padding: 5px; border-radius: 5px; margin-bottom: 10px; text-align: center;">
+                📦 Disponible: <strong style="color: #10b981">100</strong>
+            </div>
+            <input type="number" 
+                   class="category-input" 
+                   id="cat-${cat.id}"
+                   data-id="${cat.id}"
+                   data-name="${cat.name}"
+                   data-weight="${cat.weight}"
+                   data-price="${cat.price}"
+                   min="0"
+                   max="100"
+                   value="0"
+                   placeholder="Quantité">
+        `;
+        container.appendChild(card);
+    });
+    
+    // Ajouter les événements
+    document.querySelectorAll('.category-input').forEach(input => {
+        input.addEventListener('input', function() {
+            if (this.value < 0) this.value = 0;
+            if (this.value > this.max) this.value = this.max;
+            updateSummary();
+        });
+    });
+    
+    console.log('✅ Catégories affichées directement');
+}
+// Assigner globalement
+window.CATEGORIES_STOCK = CATEGORIES_LIST;
+window.categories = CATEGORIES_LIST;
   // Fonction pour calculer les ventes réelles depuis l'historique
 async function calculateActualSales(stockAttribueId) {
     console.log("📊 Calcul des ventes réelles pour stock:", stockAttribueId);
@@ -2589,6 +2671,20 @@ function setupEventListeners() {
         document.getElementById('mainInterface').style.display = 'block';
     });
     
+  // S'assurer que le bouton Nouvelle Facture fonctionne
+const selectProductionBtn = document.getElementById('selectProductionBtn');
+if (selectProductionBtn) {
+    // Supprimer les anciens écouteurs
+    const newBtn = selectProductionBtn.cloneNode(true);
+    selectProductionBtn.parentNode.replaceChild(newBtn, selectProductionBtn);
+    
+    newBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        console.log('🖱️ Clic sur Nouvelle Facture');
+        selectProductionForInvoice();
+    });
+}
+  
       // Bouton Annuler modification
     const cancelEditBtn = document.getElementById('cancelEditBtn');
     if (cancelEditBtn) {
@@ -2731,100 +2827,106 @@ function debugStocks() {
         // Nouvelle fonction pour afficher UNIQUEMENT les catégories avec stock
         // Afficher les catégories disponibles pour la vente
 function displayAvailableCategories(stockAttribue) {
-    console.log("Affichage des catégories, stock:", stockAttribue);
+    console.log('📦 Affichage catégories avec stock:', stockAttribue);
     
     const container = document.getElementById('categoriesContainer');
     if (!container) {
-        console.error("Conteneur categoriesContainer non trouvé");
+        console.error('Container categoriesContainer non trouvé');
         return;
     }
     
     container.innerHTML = '';
     
-    // Si pas de stock, utiliser les catégories par défaut avec les prix de la production
-    const categoriesData = [
-        { id: '1', name: 'Très petits', weight: '1.0-1.1 kg', price: 2000, stock: 0 },
-        { id: '2', name: 'Petits', weight: '1.2 kg', price: 2500, stock: 0 },
-        { id: '3', name: 'Moyens-petits', weight: '1.3-1.4 kg', price: 3000, stock: 0 },
-        { id: '4', name: 'Moyens', weight: '1.5-1.6 kg', price: 3300, stock: 0 },
-        { id: '5', name: 'Moyens-grands', weight: '1.7-1.9 kg', price: 3500, stock: 0 },
-        { id: '6', name: 'Grands', weight: '2 kg', price: 3700, stock: 0 },
-        { id: '7', name: 'Très grands', weight: '2.1-2.3 kg', price: 4000, stock: 0 },
-        { id: '8', name: 'Géants', weight: '+2.4 kg', price: 4500, stock: 0 }
-    ];
+    // Utiliser CATEGORIES_STOCK s'il existe, sinon categories
+    const catsToUse = window.CATEGORIES_STOCK || categories;
     
-    // Si on a un stockAttribue, utiliser ses catégories
-    if (stockAttribue && stockAttribue.categories) {
-        for (let i = 1; i <= 8; i++) {
-            const catId = i.toString();
-            const stockQty = stockAttribue.categories[catId] || 0;
-            if (categoriesData[i-1]) {
-                categoriesData[i-1].stock = stockQty;
-                // Mettre à jour le prix depuis la production si disponible
-                if (currentInvoice.productionData) {
-                    const prod = currentInvoice.productionData;
-                    const priceMap = {
-                        1: prod.small1Price, 2: prod.small2Price, 3: prod.medium1Price,
-                        4: prod.medium2Price, 5: prod.large1Price, 6: prod.large2Price,
-                        7: prod.xlarge1Price, 8: prod.xlarge2Price
-                    };
-                    if (priceMap[i]) categoriesData[i-1].price = priceMap[i];
-                }
-            }
-        }
-    }
+    // Vérifier si on a des catégories avec stock
+    let hasStock = false;
+    catsToUse.forEach(cat => {
+        const stockQty = stockAttribue.categories?.[cat.id] || 0;
+        if (stockQty > 0) hasStock = true;
+    });
     
-    // Filtrer uniquement les catégories avec stock > 0
-    const categoriesAvecStock = categoriesData.filter(cat => cat.stock > 0);
-    
-    if (categoriesAvecStock.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: #999; grid-column: 1/-1;">
-                <i class="fas fa-box-open" style="font-size: 3rem; margin-bottom: 15px;"></i>
-                <h3>Aucune catégorie disponible</h3>
-                <p>Contactez l'administrateur pour recevoir du stock</p>
-            </div>
-        `;
+    // Si aucun stock, afficher toutes les catégories avec 0
+    if (!hasStock) {
+        console.log('⚠️ Aucun stock trouvé, affichage de toutes les catégories');
+        catsToUse.forEach(cat => {
+            const categoryHTML = `
+                <div class="category-card">
+                    <div class="category-header">
+                        <div class="category-name">${cat.id}. ${cat.name}</div>
+                        <div class="category-price">${cat.prix || cat.price} F CFA</div>
+                    </div>
+                    <div style="color: #666; margin-bottom: 10px; font-size: 0.9rem;">
+                        ${cat.weight || cat.poids || ''}
+                    </div>
+                    <div style="background: #fee2e2; padding: 5px; border-radius: 5px; margin-bottom: 10px; text-align: center; color: #dc2626;">
+                        ⚠️ Stock épuisé
+                    </div>
+                    <input type="number" 
+                           class="category-input" 
+                           id="cat-${cat.id}"
+                           data-id="${cat.id}"
+                           data-name="${cat.name}"
+                           data-weight="${cat.weight || cat.poids || ''}"
+                           data-price="${cat.prix || cat.price}"
+                           min="0"
+                           max="0"
+                           value="0"
+                           placeholder="Quantité"
+                           disabled>
+                </div>
+            `;
+            container.innerHTML += categoryHTML;
+        });
         return;
     }
     
-    // Afficher les catégories
-    categoriesAvecStock.forEach(category => {
+    // Afficher uniquement les catégories
+    catsToUse.forEach(cat => {
+        const stockQty = stockAttribue.categories?.[cat.id] || 0;
+        const price = cat.prix || cat.price || 2000;
+        
         const categoryHTML = `
-            <div class="category-card" style="border-color: ${currentBoutique?.id === 'sacre-coeur-1' ? '#3B82F6' : '#10B981'};">
+            <div class="category-card" style="border-color: ${currentBoutique?.id === 'sacre-coeur' ? '#3B82F6' : '#10B981'};">
                 <div class="category-header">
-                    <div class="category-name">${category.id}. ${category.name}</div>
-                    <div class="category-price">${category.price.toLocaleString('fr-FR')} F CFA</div>
+                    <div class="category-name">${cat.id}. ${cat.name}</div>
+                    <div class="category-price">${price.toLocaleString('fr-FR')} F CFA</div>
                 </div>
                 <div style="color: #666; margin-bottom: 10px; font-size: 0.9rem;">
-                    ${category.weight}
+                    ${cat.weight || cat.poids || ''}
                 </div>
-                <div style="background: #f0f9ff; padding: 5px; border-radius: 5px; margin-bottom: 10px; text-align: center;">
-                    <small>📦 Stock disponible: <strong style="color: #10b981;">${category.stock}</strong></small>
+                <div style="background: ${stockQty > 0 ? '#f0fdf4' : '#fee2e2'}; padding: 5px; border-radius: 5px; margin-bottom: 10px; text-align: center;">
+                    📦 Disponible: <strong style="color: ${stockQty > 0 ? '#10b981' : '#dc2626'}">${stockQty}</strong>
                 </div>
                 <input type="number" 
                        class="category-input" 
-                       id="cat-${category.id}"
-                       data-id="${category.id}"
-                       data-name="${category.name}"
-                       data-weight="${category.weight}"
-                       data-price="${category.price}"
+                       id="cat-${cat.id}"
+                       data-id="${cat.id}"
+                       data-name="${cat.name}"
+                       data-weight="${cat.weight || cat.poids || ''}"
+                       data-price="${price}"
                        min="0"
-                       max="${category.stock}"
+                       max="${stockQty}"
                        value="0"
                        placeholder="Quantité"
-                       oninput="updateSummary()">
+                       ${stockQty === 0 ? 'disabled' : ''}>
             </div>
         `;
+        
         container.innerHTML += categoryHTML;
     });
     
-    // Réattacher les événements
-    container.querySelectorAll('.category-input').forEach(input => {
-        input.addEventListener('input', updateSummary);
+    // Ajouter les événements sur les inputs
+    container.querySelectorAll('.category-input:not([disabled])').forEach(input => {
+        input.addEventListener('input', function(e) {
+            if (this.value < 0) this.value = 0;
+            if (this.value > this.max) this.value = this.max;
+            updateSummary();
+        });
     });
     
-    console.log(`${categoriesAvecStock.length} catégories affichées`);
+    console.log('✅ Catégories affichées');
 }
 
 // Fonction pour charger les catégories depuis la production (sans stock attribué)
@@ -4906,93 +5008,80 @@ function generatePDFDirect() {
 // REPLACEZ TOUTE la fonction selectProductionForInvoice() par celle-ci :
 
 function selectProductionForInvoice() {
+    console.log('🖱️ Bouton Nouvelle Facture cliqué');
+    
     if (!currentBoutique) {
         showMessage('Veuillez d\'abord vous connecter', 'error');
         return;
     }
     
-    showMessage('Calcul du stock global disponible...', 'warning');
+    // Afficher directement la page de facturation
+    document.getElementById('mainInterface').style.display = 'none';
+    document.getElementById('invoicePage').style.display = 'block';
     
-    // 1. Récupérer TOUTES les productions
-    db.collection('poulailler_records').get()
-        .then(async productionsSnapshot => {
-            // 2. Calculer le stock TOTAL
-            let totalStockAll = 0;
-            productionsSnapshot.forEach(doc => {
-                const prod = doc.data();
-                totalStockAll += prod.initialStock || 0;
-            });
-            await loadCategoriesFromProduction();
-            // 3. Récupérer les pertes
-            const lossesSnapshot = await db.collection('losses').get();
-            let totalLosses = 0;
-            lossesSnapshot.forEach(doc => {
-                const loss = doc.data();
-                totalLosses += loss.quantity || 0;
-            });
-            
-            // 4. Stock disponible
-            const stockDisponible = Math.max(0, totalStockAll - totalLosses);
-            
-            // 5. Créer une modal pour afficher le stock disponible
-            const modal = document.createElement('div');
-            modal.id = 'stockGlobalModal';
-            modal.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(0,0,0,0.5);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 1000;
-                padding: 20px;
-            `;
-            
-            modal.innerHTML = `
-                <div style="background: white; border-radius: 15px; padding: 25px; width: 100%; max-width: 500px; text-align: center;">
-                    <i class="fas fa-boxes" style="font-size: 3rem; color: #10b981; margin-bottom: 15px;"></i>
-                    <h2 style="color: #1e293b;">Stock Global Disponible</h2>
-                    <div style="font-size: 3rem; font-weight: bold; color: #3B82F6; margin: 20px 0;">${stockDisponible}</div>
-                    <p style="color: #666;">poulets disponibles pour vente</p>
-                    <div style="background: #f8fafc; padding: 10px; border-radius: 10px; margin: 20px 0;">
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Stock total productions:</span>
-                            <span>${totalStockAll}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; color: #dc2626;">
-                            <span>Pertes enregistrées:</span>
-                            <span>${totalLosses}</span>
-                        </div>
-                    </div>
-                    <div style="display: flex; gap: 10px; margin-top: 20px;">
-                        <button onclick="demarrerVente(${stockDisponible})" 
-        style="flex:1; background: #10b981; color:white; border:none; padding:12px; border-radius:10px; cursor:pointer;">
-    <i class="fas fa-check"></i> Commencer la vente
-</button>
-                        <button onclick="document.getElementById('stockGlobalModal').remove()" 
-                                style="flex:1; background: #ef4444; color:white; border:none; padding:12px; border-radius:10px; cursor:pointer;">
-                            <i class="fas fa-times"></i> Annuler
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(modal);
-            
-            // Stocker le stock disponible pour validation lors de l'enregistrement
-            window.stockGlobalDisponible = stockDisponible;
-            window.stockGlobalTotal = totalStockAll;
-            window.stockGlobalPertes = totalLosses;
-            
-        }).catch(error => {
-            console.error('Erreur:', error);
-            showMessage('Erreur de chargement du stock', 'error');
-        });
+    // Réinitialiser le formulaire
+    resetInvoiceForm();
+    
+    // AFFICHER DIRECTEMENT LES CATÉGORIES (sans attendre Firebase)
+    showCategoriesDirectly();
+    
+    showMessage('Mode vente actif - Catégories disponibles', 'success');
 }
 
+// Fonction pour calculer le stock restant réel
+function calculateRemainingStock(production, stockAttribue) {
+    const categoriesStock = {
+        '1': 0, '2': 0, '3': 0, '4': 0,
+        '5': 0, '6': 0, '7': 0, '8': 0
+    };
+    
+    // Mapping des catégories
+    const catMap = {
+        '1': { qty: 'small1Quantity', sold: 'small1Sold' },
+        '2': { qty: 'small2Quantity', sold: 'small2Sold' },
+        '3': { qty: 'medium1Quantity', sold: 'medium1Sold' },
+        '4': { qty: 'medium2Quantity', sold: 'medium2Sold' },
+        '5': { qty: 'large1Quantity', sold: 'large1Sold' },
+        '6': { qty: 'large2Quantity', sold: 'large2Sold' },
+        '7': { qty: 'xlarge1Quantity', sold: 'xlarge1Sold' },
+        '8': { qty: 'xlarge2Quantity', sold: 'xlarge2Sold' }
+    };
+    
+    for (let i = 1; i <= 8; i++) {
+        const catId = i.toString();
+        const attribue = stockAttribue.categories?.[catId] || 0;
+        const dejaVendu = production[catMap[catId]?.sold] || 0;
+        categoriesStock[catId] = Math.max(0, attribue - dejaVendu);
+    }
+    
+    return { categories: categoriesStock, total: Object.values(categoriesStock).reduce((a,b) => a+b, 0) };
+}
+
+// Configuration manuelle des catégories
+function setupCategoriesManually() {
+    console.log('🔄 Configuration manuelle des catégories');
+    
+    // Créer un stock par défaut
+    const defaultStock = {
+        categories: {
+            '1': 50, '2': 50, '3': 50, '4': 50,
+            '5': 50, '6': 50, '7': 50, '8': 50
+        },
+        total: 400
+    };
+    
+    // Ouvrir la page de facturation
+    document.getElementById('mainInterface').style.display = 'none';
+    document.getElementById('invoicePage').style.display = 'block';
+    
+    // Réinitialiser le formulaire
+    resetInvoiceForm();
+    
+    // Afficher les catégories
+    displayAvailableCategories(defaultStock);
+    
+    showMessage('Mode démo - Toutes les catégories sont disponibles', 'warning');
+}
   
   // Fonction pour démarrer la vente après confirmation du stock
 function demarrerVente(stockDisponible) {
@@ -7678,6 +7767,17 @@ document.getElementById('backBtn')?.addEventListener('click', function() {
 document.getElementById('montantPaye')?.addEventListener('input', function() {
     const total = calculerTotalVente();
     updatePaiementResume(total);
+});
+  
+  
+  // Gestionnaire d'erreurs global
+window.addEventListener('error', function(e) {
+    console.error('❌ Erreur globale:', e.message, e.filename, e.lineno);
+});
+
+// Pour Firebase
+firebase.firestore().enablePersistence().catch(err => {
+    console.log('Persistence non activée:', err.message);
 });
     </script>
    
