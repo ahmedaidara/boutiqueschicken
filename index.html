@@ -1234,6 +1234,68 @@
     flex-wrap: wrap;
     gap: 10px;
 }
+      
+      
+      /* Style pour le bouton Nouvelle Facture */
+#selectProductionBtn {
+    cursor: pointer;
+}
+
+/* Styles pour les catégories de vente */
+.category-card {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    transition: all 0.3s;
+}
+
+.category-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.category-name {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #333;
+}
+
+.category-price {
+    background: #667eea;
+    color: white;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-weight: bold;
+}
+
+.category-input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 1rem;
+    text-align: center;
+}
+
+.category-input:focus {
+    border-color: #667eea;
+    outline: none;
+}
+
+/* Animation pour les messages */
+@keyframes slideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
     </style>
 </head>
 <body>
@@ -2080,7 +2142,15 @@ function loginSuccess() {
     showMessage(`Bienvenue - ${currentBoutique.name}`, 'success');
     
     // Initialiser la page stock
-    initStockPage();
+    // Initialiser la page stock
+initStockPage();
+
+// FORCER L'AFFICHAGE DES CATÉGORIES 
+setTimeout(() => {
+    if (document.getElementById('categoriesContainer')) {
+        afficherCategoriesVentes();
+    }
+}, 500);
 }
         
   // Initialiser la page stock (créer le HTML une seule fois)
@@ -2685,6 +2755,7 @@ if (selectProductionBtn) {
     });
 }
   
+  
       // Bouton Annuler modification
     const cancelEditBtn = document.getElementById('cancelEditBtn');
     if (cancelEditBtn) {
@@ -2773,6 +2844,7 @@ document.getElementById('stockBtn').addEventListener('click', showStockPage);
         });
     }
     
+  
     console.log("✅ Tous les événements sont configurés");
 }
         // AJOUTEZ cette fonction APRÈS setupEventListeners() :
@@ -2812,17 +2884,9 @@ function debugStocks() {
         });
 } 
         // Configuration des catégories
-              function setupCategories() {
-            const container = document.getElementById('categoriesContainer');
-            
-            // Ne pas remplir maintenant, on attendra le chargement du stock
-            container.innerHTML = `
-                <div style="text-align: center; padding: 30px; color: #999; grid-column: 1/-1;">
-                    <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
-                    <p>Chargement des catégories disponibles...</p>
-                </div>
-            `;
-        }
+         function setupCategories() {
+    afficherCategoriesVentes();
+}
 
         // Nouvelle fonction pour afficher UNIQUEMENT les catégories avec stock
         // Afficher les catégories disponibles pour la vente
@@ -3032,7 +3096,9 @@ function updateSummary() {
     selectedItems = {};
     let total = 0;
     
-    document.querySelectorAll('.category-input').forEach(input => {
+    const inputs = document.querySelectorAll('.category-input');
+    
+    inputs.forEach(input => {
         let quantity = parseInt(input.value) || 0;
         const max = parseInt(input.max) || 0;
         
@@ -3059,28 +3125,67 @@ function updateSummary() {
         }
     });
     
-    // Mettre à jour l'affichage
+    // Mettre à jour l'affichage du total
     const totalAmountEl = document.getElementById('totalAmount');
     if (totalAmountEl) {
         totalAmountEl.textContent = total.toLocaleString('fr-FR') + ' F CFA';
     }
     
+    // Mettre à jour la liste des items sélectionnés
     updateSelectedItemsList();
+    
+    // Mettre à jour les montants de paiement
     updatePaiementMontants();
 }
 
-// Mettre à jour les montants de paiement
 function updatePaiementMontants() {
-    const total = parseInt(document.getElementById('totalAmount').textContent.replace(/\D/g, '')) || 0;
+    // Récupérer le total
+    const totalText = document.getElementById('totalAmount');
+    let total = 0;
+    if (totalText) {
+        total = parseInt(totalText.textContent.replace(/\D/g, '')) || 0;
+    }
     
-    document.getElementById('montantTotal').textContent = total.toLocaleString('fr-FR') + ' F CFA';
-    document.getElementById('montantPaye').textContent = paiementActuel.montantPaye.toLocaleString('fr-FR') + ' F CFA';
+    // Récupérer le montant payé depuis l'input
+    const montantPayeInput = document.getElementById('montantPayeInput');
+    let montantPaye = 0;
+    if (montantPayeInput) {
+        montantPaye = parseInt(montantPayeInput.value) || 0;
+    }
     
-    const reste = Math.max(0, total - paiementActuel.montantPaye);
-    document.getElementById('montantReste').textContent = reste.toLocaleString('fr-FR') + ' F CFA';
+    const reste = Math.max(0, total - montantPaye);
     
-    // Mettre à jour le statut
-    updatePaiementStatus(total, paiementActuel.montantPaye);
+    // Afficher les valeurs
+    const totalSpan = document.getElementById('montantTotalCalc');
+    const payeSpan = document.getElementById('montantPayeCalc');
+    const resteSpan = document.getElementById('montantResteCalc');
+    
+    if (totalSpan) totalSpan.textContent = total.toLocaleString('fr-FR') + ' F CFA';
+    if (payeSpan) payeSpan.textContent = montantPaye.toLocaleString('fr-FR') + ' F CFA';
+    if (resteSpan) resteSpan.textContent = reste.toLocaleString('fr-FR') + ' F CFA';
+    
+    // Afficher le statut
+    const statutDiv = document.getElementById('statutPaiement');
+    if (statutDiv) {
+        const modePaiement = document.querySelector('input[name="modePaiement"]:checked')?.value || 'especes';
+        const modeTexte = modePaiement === 'especes' ? 'Espèces' : (modePaiement === 'wave' ? 'Wave' : 'Orange Money');
+        
+        if (montantPaye === 0) {
+            statutDiv.style.display = 'none';
+        } else if (montantPaye >= total) {
+            statutDiv.style.display = 'block';
+            statutDiv.style.background = '#d1fae5';
+            statutDiv.style.color = '#059669';
+            statutDiv.innerHTML = `<i class="fas fa-check-circle"></i> Payé intégralement (${modeTexte})`;
+        } else {
+            statutDiv.style.display = 'block';
+            statutDiv.style.background = '#fef3c7';
+            statutDiv.style.color = '#d97706';
+            statutDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Paiement partiel: reste ${reste.toLocaleString('fr-FR')} F CFA (${modeTexte})`;
+        }
+    }
+    
+    console.log("Mise à jour paiement - Total:", total, "Payé:", montantPaye, "Reste:", reste);
 }
 
 // Mettre à jour le statut du paiement
@@ -3149,19 +3254,31 @@ function resetPaiement() {
         }
         
           // Mettre à jour l'affichage du statut de paiement
-     // Mettre à jour l'affichage du statut de paiement
-function updateStatutPaiement() {
-    const total = parseInt(document.getElementById('totalAmount').textContent.replace(/\D/g, '')) || 0;
-    const montantPaye = parseInt(document.getElementById('montantPayeInput').value) || 0;
+   function updateStatutPaiement() {
+    // Vérifier que les éléments existent
+    const totalEl = document.getElementById('totalAmount');
+    const montantPayeEl = document.getElementById('montantPayeInput');
+    const montantTotalCalc = document.getElementById('montantTotalCalc');
+    const montantPayeCalc = document.getElementById('montantPayeCalc');
+    const montantResteCalc = document.getElementById('montantResteCalc');
+    const statutDiv = document.getElementById('statutPaiement');
+    
+    // Si un élément manque, on sort
+    if (!totalEl || !montantPayeEl || !montantTotalCalc || !montantPayeCalc || !montantResteCalc || !statutDiv) {
+        console.log("⚠️ Éléments manquants pour updateStatutPaiement");
+        return;
+    }
+    
+    const total = parseInt(totalEl.textContent.replace(/\D/g, '')) || 0;
+    const montantPaye = parseInt(montantPayeEl.value) || 0;
     const reste = Math.max(0, total - montantPaye);
     
     // Mettre à jour l'affichage des calculs
-    document.getElementById('montantTotalCalc').textContent = total.toLocaleString('fr-FR') + ' F CFA';
-    document.getElementById('montantPayeCalc').textContent = montantPaye.toLocaleString('fr-FR') + ' F CFA';
-    document.getElementById('montantResteCalc').textContent = reste.toLocaleString('fr-FR') + ' F CFA';
+    montantTotalCalc.textContent = total.toLocaleString('fr-FR') + ' F CFA';
+    montantPayeCalc.textContent = montantPaye.toLocaleString('fr-FR') + ' F CFA';
+    montantResteCalc.textContent = reste.toLocaleString('fr-FR') + ' F CFA';
     
     // Déterminer le statut
-    const statutDiv = document.getElementById('statutPaiement');
     const modePaiement = document.querySelector('input[name="modePaiement"]:checked')?.value || 'especes';
     
     if (montantPaye === 0) {
@@ -3172,13 +3289,13 @@ function updateStatutPaiement() {
         statutDiv.style.display = 'block';
         statutDiv.style.background = '#d1fae5';
         statutDiv.style.color = '#065f46';
-        statutDiv.innerHTML = `<i class="fas fa-check-circle"></i>  Payé intégralement (${modePaiement === 'especes' ? ' Espèces' : modePaiement === 'wave' ? ' Wave' : ' Orange Money'})`;
+        statutDiv.innerHTML = `<i class="fas fa-check-circle"></i> Payé intégralement (${modePaiement === 'especes' ? 'Espèces' : modePaiement === 'wave' ? 'Wave' : 'Orange Money'})`;
     } else {
         statutPaiementDetaille = 'partiel';
         statutDiv.style.display = 'block';
         statutDiv.style.background = '#fef3c7';
         statutDiv.style.color = '#92400e';
-        statutDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ⚠ Paiement partiel: ${montantPaye.toLocaleString('fr-FR')} F CFA reçu, reste ${reste.toLocaleString('fr-FR')} F CFA (${modePaiement === 'especes' ? '💵 Espèces' : modePaiement === 'wave' ? ' Wave' : ' Orange Money'})`;
+        statutDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Paiement partiel: ${montantPaye.toLocaleString('fr-FR')} F CFA reçu, reste ${reste.toLocaleString('fr-FR')} F CFA (${modePaiement === 'especes' ? 'Espèces' : modePaiement === 'wave' ? 'Wave' : 'Orange Money'})`;
     }
     
     montantPayeActuel = montantPaye;
@@ -3220,6 +3337,8 @@ function resetInvoiceForm() {
     
     //  LE PAIEMENT
     resetPaiement();
+  // Réafficher les catégories
+afficherCategoriesVentes();
         // Réinitialiser l'affichage des catégories si on a un stock
     if (currentInvoice.stockData) {
         displayAvailableCategories(currentInvoice.stockData);
@@ -3238,6 +3357,117 @@ function resetInvoiceForm() {
     document.querySelector('#invoicePage h2').innerHTML = 'Nouvelle Facture';
 }
         
+  async function afficherCategoriesVentes() {
+    const container = document.getElementById('categoriesContainer');
+    if (!container) {
+        console.error("Container non trouvé");
+        return;
+    }
+    
+    // Afficher chargement
+    container.innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin"></i> Chargement des stocks...</div>';
+    
+    // Valeurs par défaut
+    let stocksRestants = {
+        '1': 0, '2': 0, '3': 0, '4': 0,
+        '5': 0, '6': 0, '7': 0, '8': 0
+    };
+    
+    try {
+        // Récupérer la dernière production (la plus récente)
+        const snapshot = await db.collection('poulailler_records')
+            .orderBy('startDate', 'desc')
+            .limit(1)
+            .get();
+        
+        if (!snapshot.empty) {
+            const production = snapshot.docs[0].data();
+            console.log("Production chargée:", production);
+            
+            // Calculer les restants (Quantité - Vendu)
+            stocksRestants['1'] = Math.max(0, (production.small1Quantity || 0) - (production.small1Sold || 0));
+            stocksRestants['2'] = Math.max(0, (production.small2Quantity || 0) - (production.small2Sold || 0));
+            stocksRestants['3'] = Math.max(0, (production.medium1Quantity || 0) - (production.medium1Sold || 0));
+            stocksRestants['4'] = Math.max(0, (production.medium2Quantity || 0) - (production.medium2Sold || 0));
+            stocksRestants['5'] = Math.max(0, (production.large1Quantity || 0) - (production.large1Sold || 0));
+            stocksRestants['6'] = Math.max(0, (production.large2Quantity || 0) - (production.large2Sold || 0));
+            stocksRestants['7'] = Math.max(0, (production.xlarge1Quantity || 0) - (production.xlarge1Sold || 0));
+            stocksRestants['8'] = Math.max(0, (production.xlarge2Quantity || 0) - (production.xlarge2Sold || 0));
+            
+            console.log("Stocks restants calculés:", stocksRestants);
+        } else {
+            console.log("Aucune production trouvée");
+        }
+    } catch (error) {
+        console.error("Erreur chargement production:", error);
+    }
+    
+    // Les 8 catégories
+    const categoriesList = [
+        { id: '1', name: "Très petits", weight: "1.0-1.1 kg", price: 2000 },
+        { id: '2', name: "Petits", weight: "1.2 kg", price: 2500 },
+        { id: '3', name: "Moyens-petits", weight: "1.3-1.4 kg", price: 3000 },
+        { id: '4', name: "Moyens", weight: "1.5-1.6 kg", price: 3300 },
+        { id: '5', name: "Moyens-grands", weight: "1.7-1.9 kg", price: 3500 },
+        { id: '6', name: "Grands", weight: "2 kg", price: 3700 },
+        { id: '7', name: "Très grands", weight: "2.1-2.3 kg", price: 4000 },
+        { id: '8', name: "Géants", weight: "+2.4 kg", price: 4500 }
+    ];
+    
+    // Vider et remplir le container
+    container.innerHTML = '';
+    
+    categoriesList.forEach(cat => {
+        const reste = stocksRestants[cat.id] || 0;
+        const couleurReste = reste > 0 ? '#10b981' : '#ef4444';
+        const bgStock = reste > 0 ? '#f0fdf4' : '#fee2e2';
+        
+        container.innerHTML += `
+            <div class="category-card" style="border: 2px solid #e0e0e0; border-radius: 15px; padding: 20px; margin-bottom: 15px; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div style="font-weight: bold; font-size: 1.1rem;">${cat.id}. ${cat.name}</div>
+                    <div style="background: #667eea; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold;">
+                        ${cat.price.toLocaleString('fr-FR')} F CFA
+                    </div>
+                </div>
+                <div style="color: #666; margin-bottom: 15px; font-size: 0.9rem;">${cat.weight}</div>
+                <div style="background: ${bgStock}; padding: 10px; border-radius: 10px; margin-bottom: 15px; text-align: center;">
+                    📦 <strong>Stock restant :</strong> 
+                    <span style="font-size: 1.3rem; font-weight: bold; color: ${couleurReste};">${reste}</span>
+                </div>
+                <input type="number" 
+                       class="category-input" 
+                       id="cat-${cat.id}"
+                       data-id="${cat.id}"
+                       data-name="${cat.name}"
+                       data-weight="${cat.weight}"
+                       data-price="${cat.price}"
+                       min="0"
+                       max="${reste}"
+                       value="0"
+                       placeholder="Quantité à vendre"
+                       ${reste === 0 ? 'disabled' : ''}
+                       style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1rem; text-align: center;">
+            </div>
+        `;
+    });
+    
+    // Réattacher l'événement updateSummary
+    document.querySelectorAll('.category-input').forEach(input => {
+        input.addEventListener('input', function() {
+            let val = parseInt(this.value) || 0;
+            let max = parseInt(this.max) || 0;
+            if (val > max) this.value = max;
+            if (val < 0) this.value = 0;
+            updateSummary();
+        });
+    });
+    
+    console.log("✅ Catégories affichées avec stocks restants");
+}
+  
+  
+  
 async function saveInvoice() {
     const clientName = document.getElementById('clientName').value.trim();
     const clientPhone = document.getElementById('clientPhone').value.trim();
@@ -5006,7 +5236,6 @@ function generatePDFDirect() {
   
   
 // REPLACEZ TOUTE la fonction selectProductionForInvoice() par celle-ci :
-
 function selectProductionForInvoice() {
     console.log('🖱️ Bouton Nouvelle Facture cliqué');
     
@@ -5015,15 +5244,11 @@ function selectProductionForInvoice() {
         return;
     }
     
-    // Afficher directement la page de facturation
     document.getElementById('mainInterface').style.display = 'none';
     document.getElementById('invoicePage').style.display = 'block';
     
-    // Réinitialiser le formulaire
     resetInvoiceForm();
-    
-    // AFFICHER DIRECTEMENT LES CATÉGORIES (sans attendre Firebase)
-    showCategoriesDirectly();
+    afficherCategoriesVentes();
     
     showMessage('Mode vente actif - Catégories disponibles', 'success');
 }
