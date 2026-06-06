@@ -1380,33 +1380,23 @@
             <i class="fas fa-arrow-left"></i> Retour
         </button>
       <!-- SELECTION DE LA PRODUCTION - À AJOUTER APRÈS backBtn -->
-<div id="productionSelectionSection" class="client-info" style="margin-bottom: 20px; background: #f0fdf4; border-left: 4px solid #10b981;">
-    <h3 style="margin-bottom: 15px; color: #065f46;">
-        <i class="fas fa-seedling"></i> 1. Sélectionner une production
-    </h3>
-    <div class="info-grid">
-        <div class="input-group" style="grid-column: span 2;">
-            <label>Production disponible</label>
-            <select id="productionSelectForInvoice" class="form-input" style="padding: 12px;">
-                <option value="">-- Chargement des productions --</option>
-            </select>
-        </div>
-        <div class="input-group">
-            <label>&nbsp;</label>
-            <button id="loadProductionBtn" class="btn" style="background: #10b981; color: white; width: 100%;">
-                <i class="fas fa-check"></i> Charger cette production
-            </button>
-        </div>
-    </div>
-</div>
-
+  
+ 
 <!-- DIV pour afficher le stock chargé (apparaît après sélection) -->
 <div id="loadedStockSection" style="display: none;"></div>
         <button id="cancelEditBtn" class="back-btn" style="background: #ef4444; color: white; display: none;">
                 <i class="fas fa-times"></i> Annuler modification
             </button>
         <h2 style="margin-bottom: 20px; color: #333;">Nouvelle Facture</h2>
-        
+        <!-- À METTRE AU DÉBUT DE #invoicePage -->
+<div id="productionSelectionZone" style="background: #e8f5e9; border-left: 5px solid #2e7d32; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <h3 style="color: #2e7d32; margin-top: 0; margin-bottom: 10px; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+        <i class="fas fa-layer-group"></i> 1. Choisir la Production active
+    </h3>
+    <select id="invoiceProductionSelect" class="form-input" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #2e7d32; background: white; font-weight: bold; font-size: 1rem; color: #1e293b;">
+        <option value="">-- ⏳ Chargement des productions --</option>
+    </select>
+</div>
         <!-- Informations client -->
         <div class="client-info">
             <h3 style="margin-bottom: 20px; color: #555;">
@@ -3750,87 +3740,60 @@ async function checkFirebaseData() {
     }
 }
   
-// Mettre à jour les stocks dans la production (VERSION CORRIGÉE)
+// =================================================================
+// 2. DECREMENTATION DU STOCK UNIQUE (INCREMENTATION DU CHAMP SOLD DE LA PRODUCTION)
+// =================================================================
 async function updateProductionStocks(productionId, itemsSold) {
-    console.log("🔥 MISE À JOUR PRODUCTION DÉBUT", productionId, itemsSold);
-    
-    if (!productionId) {
-        console.error("❌ ERREUR: Pas d'ID production");
-        return false;
-    }
-    
+    console.log("🔥 Soustraction en direct sur le Stock Global de la production :", productionId);
+    if (!productionId) return false;
+
     try {
         const productionRef = db.collection('poulailler_records').doc(productionId);
         
-        // 1. LIRE les données actuelles
-        const doc = await productionRef.get();
-        
-        if (!doc.exists) {
-            console.error("❌ Production non trouvée:", productionId);
-            return false;
-        }
-        
-        const production = doc.data();
-        console.log("📊 Données actuelles production:", production);
-        
-        // 2. PRÉPARER les mises à jour
-        const updates = {};
-        
-        // Mapping exact des catégories
-        const categoryMap = {
-            '1': { soldField: 'small1Sold', priceField: 'small1Price', qtyField: 'small1Quantity' },
-            '2': { soldField: 'small2Sold', priceField: 'small2Price', qtyField: 'small2Quantity' },
-            '3': { soldField: 'medium1Sold', priceField: 'medium1Price', qtyField: 'medium1Quantity' },
-            '4': { soldField: 'medium2Sold', priceField: 'medium2Price', qtyField: 'medium2Quantity' },
-            '5': { soldField: 'large1Sold', priceField: 'large1Price', qtyField: 'large1Quantity' },
-            '6': { soldField: 'large2Sold', priceField: 'large2Price', qtyField: 'large2Quantity' },
-            '7': { soldField: 'xlarge1Sold', priceField: 'xlarge1Price', qtyField: 'xlarge1Quantity' },
-            '8': { soldField: 'xlarge2Sold', priceField: 'xlarge2Price', qtyField: 'xlarge2Quantity' }
-        };
-        
-        // Pour chaque item vendu
-        Object.values(itemsSold).forEach(item => {
-            const cat = categoryMap[item.id];
-            if (cat) {
-                const currentSold = production[cat.soldField] || 0;
-                updates[cat.soldField] = currentSold + item.quantity;
-                console.log(`➕ ${cat.soldField}: ${currentSold} + ${item.quantity} = ${updates[cat.soldField]}`);
+        // Exécuter une transaction Firebase pour éviter que 2 boutiques qui vendent en même temps ne faussent le calcul
+        await db.runTransaction(async (transaction) => {
+            const sfDoc = await transaction.get(productionRef);
+            if (!sfDoc.exists) {
+                throw "La production n'existe pas !";
             }
+
+            const productionData = sfDoc.data();
+            const updates = {};
+
+            // Mapping exact des champs à incrémenter
+            const fieldMap = {
+                '1': 'small1Sold',
+                '2': 'small2Sold',
+                '3': 'medium1Sold',
+                '4': 'medium2Sold',
+                '5': 'large1Sold',
+                '6': 'large2Sold',
+                '7': 'xlarge1Sold',
+                '8': 'xlarge2Sold'
+            };
+
+            itemsSold.forEach(item => {
+                const fieldName = fieldMap[item.id];
+                if (fieldName) {
+                    const cumulPrecedent = parseInt(productionData[fieldName]) || 0;
+                    updates[fieldName] = cumulPrecedent + parseInt(item.quantity);
+                }
+            });
+
+            // Sauvegarder les données mises à jour directement dans la production globale
+            transaction.update(productionRef, updates);
         });
-        
-        // Calculer le total vendu
-        const totalSold = Object.values(updates).reduce((sum, val) => sum + val, 0);
-        
-        // Mettre à jour les totaux
-        updates.totalSold = (production.totalSold || 0) + totalSold;
-        
-        // Calculer le stock restant
-        const initialStock = production.initialStock || 0;
-        const lost = production.lost || 0;
-        const given = production.given || 0;
-        const totalLostGiven = lost + given;
-        updates.remainingStock = Math.max(0, initialStock - updates.totalSold - totalLostGiven);
-        
-        // Métadonnées
-        updates.lastSaleDate = new Date().toISOString();
-        updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-        
-        console.log("📝 Mises à jour à appliquer:", updates);
-        
-        // 3. APPLIQUER les mises à jour
-        await productionRef.update(updates);
-        console.log("✅ PRODUCTION MISE À JOUR DANS FIREBASE");
-        
+
+        console.log("✅ Stock Global décrémenté avec succès pour toutes les boutiques !");
         return true;
-        
     } catch (error) {
-        console.error("💥 ERREUR CRITIQUE updateProductionStocks:", error);
-        throw error;
+        console.error("❌ Échec de la mise à jour du stock unique global :", error);
+        return false;
     }
 }
 
-  // Mettre à jour le stock attribué spécifique à la boutique
-async function updateAttributedStock(stockAttribueId, itemsSold) {
+
+  async function updateAttributedStock(stockAttribueId, itemsSold) {
     console.log("🔥 MISE À JOUR STOCK ATTRIBUÉ DÉBUT", stockAttribueId, itemsSold);
     
     if (!stockAttribueId) {
@@ -8325,60 +8288,6 @@ firebase.firestore().enablePersistence().catch(err => {
 // FIX COMPLET POUR LE BOUTON NOUVELLE FACTURE
 // ==============================================
 
-// Fonction principale pour Nouvelle Facture
-function selectProductionForInvoice() {
-    console.log('🖱️ Nouvelle Facture cliqué');
-    
-    if (!currentBoutique) {
-        showMessage('Veuillez d\'abord vous connecter', 'error');
-        return;
-    }
-    
-    // Afficher la page de facturation
-    document.getElementById('mainInterface').style.display = 'none';
-    document.getElementById('invoicePage').style.display = 'block';
-    
-    // Afficher la section de sélection de production
-    const prodSection = document.getElementById('productionSelectionSection');
-    if (prodSection) prodSection.style.display = 'block';
-    
-    // Cacher la section stock chargé
-    const loadedSection = document.getElementById('loadedStockSection');
-    if (loadedSection) {
-        loadedSection.style.display = 'none';
-        loadedSection.innerHTML = '';
-    }
-    
-    // Réinitialiser le formulaire client
-    const clientName = document.getElementById('clientName');
-    const clientPhone = document.getElementById('clientPhone');
-    const clientAddress = document.getElementById('clientAddress');
-    if (clientName) clientName.value = '';
-    if (clientPhone) clientPhone.value = '';
-    if (clientAddress) clientAddress.value = '';
-    
-    // Réinitialiser le paiement
-    const montantPayeInput = document.getElementById('montantPayeInput');
-    if (montantPayeInput) montantPayeInput.value = '0';
-    
-    // Afficher message d'attente
-    const container = document.getElementById('categoriesContainer');
-    if (container) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: #999; grid-column: 1/-1;">
-                <i class="fas fa-box-open" style="font-size: 3rem; margin-bottom: 15px;"></i>
-                <h3>Sélectionnez une production ci-dessus</h3>
-                <p>Choisissez une production dans le menu vert puis cliquez sur "Charger cette production"</p>
-            </div>
-        `;
-    }
-    
-    selectedItems = {};
-    document.getElementById('totalAmount').textContent = '0 F CFA';
-    updateSelectedItemsList();
-    
-    showMessage('Sélectionnez une production pour commencer', 'warning');
-}
 
 // Charger les productions dans le select
 // Charger les productions dans le select - VERSION CORRIGÉE
@@ -8757,6 +8666,249 @@ setTimeout(function() {
         
     }, 500);
 })();
+  
+ 
+// =================================================================
+// 1. CLIC "NOUVELLE FACTURE" : CHARGEMENT DIRECT DU STOCK GLOBAL
+// =================================================================
+async function selectProductionForInvoice() {
+    console.log("🟢 Synchronisation du stock GLOBAL unique...");
+    
+    if (!currentBoutique) {
+        showMessage('Veuillez d\'abord vous connecter', 'error');
+        return;
+    }
+
+    // Basculer sur l'écran de facturation
+    document.getElementById('mainInterface').style.display = 'none';
+    document.getElementById('invoicePage').style.display = 'block';
+    
+    // Nettoyer définitivement l'ancienne zone verte de chargement si elle existe
+    const oldZone = document.getElementById('productionSelectionZone');
+    if (oldZone) oldZone.remove();
+
+    const container = document.getElementById('categoriesContainer');
+    if (!container) return;
+    
+    container.innerHTML = `
+        <div style="text-align:center;padding:40px;grid-column:1/-1;">
+            <i class="fas fa-spinner fa-spin fa-2x" style="color:#2e7d32;"></i>
+            <br><br>Mise à jour du stock global en direct...
+        </div>
+    `;
+
+    try {
+        // Aller chercher la toute dernière production active ajoutée
+        const snapshot = await db.collection('poulailler_records')
+            .orderBy('startDate', 'desc')
+            .limit(1)
+            .get();
+
+        if (snapshot.empty) {
+            container.innerHTML = '<div style="text-align:center;color:#ef4444;grid-column:1/-1;">⚠️ Aucune production active trouvée dans le système.</div>';
+            return;
+        }
+
+        const prodDoc = snapshot.docs[0];
+        const production = prodDoc.data();
+        
+        // Mémoriser la production courante pour la vente
+        currentInvoice.productionId = prodDoc.id;
+        currentInvoice.stockAttribueId = "GLOBAL_STOCK"; // Suppression de l'ancienne logique par boutique
+
+        // Configuration exacte des 8 catégories
+        const categoriesConfig = [
+            { id: '1', name: 'Très petits (1-1.1 kg)', qtyField: 'small1Quantity', soldField: 'small1Sold', fallbackPrice: 2000 },
+            { id: '2', name: 'Petits (1.2 kg)', qtyField: 'small2Quantity', soldField: 'small2Sold', fallbackPrice: 2500 },
+            { id: '3', name: 'Moyens-petits (1.3-1.4 kg)', qtyField: 'medium1Quantity', soldField: 'medium1Sold', fallbackPrice: 3000 },
+            { id: '4', name: 'Moyens (1.5-1.6 kg)', qtyField: 'medium2Quantity', soldField: 'medium2Sold', fallbackPrice: 3300 },
+            { id: '5', name: 'Moyens-grands (1.7-1.9 kg)', qtyField: 'large1Quantity', soldField: 'large1Sold', fallbackPrice: 3500 },
+            { id: '6', name: 'Grands (2 kg)', qtyField: 'large2Quantity', soldField: 'large2Sold', fallbackPrice: 3700 },
+            { id: '7', name: 'Très grands (2.1-2.3 kg)', qtyField: 'xlarge1Quantity', soldField: 'xlarge1Sold', fallbackPrice: 4000 },
+            { id: '8', name: 'Géants (+2.4 kg)', qtyField: 'xlarge2Quantity', soldField: 'xlarge2Sold', fallbackPrice: 4500 }
+        ];
+
+        container.innerHTML = '';
+        if (typeof resetInvoiceForm === 'function') resetInvoiceForm();
+
+        categoriesConfig.forEach(cat => {
+            // Formule mathématique demandée : Reçus - Vendus = Restant disponible (Partagé globalement)
+            const recus = parseInt(production[cat.qtyField]) || 0;
+            const vendus = parseInt(production[cat.soldField]) || 0;
+            const restants = Math.max(0, recus - vendus);
+
+            const priceKey = cat.qtyField.replace('Quantity', 'Price');
+            const prixUnitaire = parseInt(production[priceKey]) || cat.fallbackPrice;
+
+            const cardHTML = `
+                <div class="category-card" style="border-left: 5px solid #2e7d32;">
+                    <div class="category-header">
+                        <div class="category-name">${cat.id}. ${cat.name}</div>
+                        <div class="category-price">${prixUnitaire.toLocaleString('fr-FR')} F CFA</div>
+                    </div>
+                    <div style="margin: 10px 0; padding: 6px 10px; background: #f8fafc; border-radius: 8px; font-size: 0.9rem; display: flex; justify-content: space-between;">
+                        <span>📥 Reçus: <strong>${recus}</strong></span>
+                        <span>🤝 Vendus: <strong>${vendus}</strong></span>
+                        <span style="color: #2e7d32; font-weight: bold;">📦 Restant: <span id="stock-restant-${cat.id}">${restants}</span></span>
+                    </div>
+                    <input type="number" 
+                           class="category-input" 
+                           id="cat-${cat.id}" 
+                           data-id="${cat.id}" 
+                           data-name="${cat.name}" 
+                           data-price="${prixUnitaire}" 
+                           min="0" 
+                           max="${restants}" 
+                           value="0" 
+                           placeholder="0"
+                           style="width:100%; padding:8px; border-radius:6px; border:1px solid #cbd5e1;"
+                           oninput="validerSaisieQuantite(this, ${restants})">
+                </div>
+            `;
+            container.innerHTML += cardHTML;
+        });
+
+        showMessage('Stock Global unique synchronisé !', 'success');
+
+    } catch (error) {
+        console.error("Erreur de synchronisation du stock unique:", error);
+        container.innerHTML = `<div style="text-align:center;color:#ef4444;grid-column:1/-1;">💥 Erreur de connexion réseau lors du calcul du stock.</div>`;
+    }
+}
+
+function validerSaisieQuantite(input, maxDispo) {
+    let valeur = parseInt(input.value) || 0;
+    if (valeur < 0) input.value = 0;
+    if (valeur > maxDispo) {
+        showMessage(`Quantité limitée par le stock global restant (${maxDispo})`, 'warning');
+        input.value = maxDispo;
+    }
+    if (typeof updateSummary === 'function') updateSummary();
+}
+
+
+// =================================================================
+// 2. ENREGISTREMENT ET SOUSTRACTION DU STOCK UNIQUE GLOBAL
+// =================================================================
+async function saveInvoice(e) {
+    if (e) e.preventDefault(); // Bloquer le rechargement de la page
+    console.log("📝 Début de l'enregistrement de la vente...");
+
+    if (!currentInvoice.productionId) {
+        showMessage("💥 Erreur : Aucune production globale active ciblée.", "error");
+        return;
+    }
+
+    // 1. Collecter les poulets saisis dans la grille
+    const itemsSold = [];
+    const categoriesIds = ['1', '2', '3', '4', '5', '6', '7', '8'];
+
+    categoriesIds.forEach(id => {
+        const input = document.getElementById(`cat-${id}`);
+        if (input) {
+            const qte = parseInt(input.value) || 0;
+            if (qte > 0) {
+                itemsSold.push({
+                    id: id,
+                    name: input.dataset.name,
+                    price: parseInt(input.dataset.price),
+                    quantity: qte,
+                    subtotal: qte * parseInt(input.dataset.price)
+                });
+            }
+        }
+    });
+
+    if (itemsSold.length === 0) {
+        showMessage("⚠️ Veuillez saisir au moins une quantité avant d'enregistrer.", "warning");
+        return;
+    }
+
+    try {
+        const saveBtn = document.getElementById('saveInvoiceBtn');
+        if (saveBtn) saveBtn.disabled = true;
+
+        // 2. Structurer la facture pour la collection 'factures'
+        const baseFacture = {
+            boutiqueId: currentBoutique.id,
+            boutiqueNom: currentBoutique.name,
+            productionId: currentInvoice.productionId,
+            clientNom: document.getElementById('clientName')?.value || 'Client Anonyme',
+            clientTelephone: document.getElementById('clientPhone')?.value || '',
+            clientAdresse: document.getElementById('clientAddress')?.value || '',
+            articles: itemsSold,
+            totalTTC: typeof totalFactureGlobale !== 'undefined' ? totalFactureGlobale : 0, 
+            modePaiement: document.querySelector('input[name="paymentMode"]:checked')?.value || 'Espèces',
+            montantRecu: parseInt(document.getElementById('amountReceived')?.value) || 0,
+            dateCreation: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        // Calcul automatique du statut du paiement
+        const resteAPayer = baseFacture.totalTTC - baseFacture.montantRecu;
+        baseFacture.statutPaiement = resteAPayer <= 0 ? 'Payé' : (baseFacture.montantRecu > 0 ? 'Partiel' : 'Dû');
+
+        // Écriture du document Facture
+        const docRef = await db.collection('factures').add(baseFacture);
+        console.log("Facture ajoutée avec succès ID:", docRef.id);
+
+        // 3. TRANSACTION FIREBASE : Décrémenter le stock GLOBAL unique
+        const productionRef = db.collection('poulailler_records').doc(currentInvoice.productionId);
+        
+        await db.runTransaction(async (transaction) => {
+            const sfDoc = await transaction.get(productionRef);
+            if (!sfDoc.exists) throw "La production globale n'existe pas !";
+
+            const productionData = sfDoc.data();
+            const updates = {};
+            
+            // Correspondance avec les champs 'Sold' cumulés de ta collection de production
+            const fieldMap = {
+                '1': 'small1Sold', '2': 'small2Sold', 
+                '3': 'medium1Sold', '4': 'medium2Sold', 
+                '5': 'large1Sold', '6': 'large2Sold', 
+                '7': 'xlarge1Sold', '8': 'xlarge2Sold'
+            };
+
+            itemsSold.forEach(item => {
+                const fieldName = fieldMap[item.id];
+                if (fieldName) {
+                    const cumulPrecedent = parseInt(productionData[fieldName]) || 0;
+                    updates[fieldName] = cumulPrecedent + parseInt(item.quantity);
+                }
+            });
+
+            // Sauvegarder les incrémentations directement sur la production
+            transaction.update(productionRef, updates);
+        });
+
+        showMessage("✅ Vente validée et Stock Global mis à jour !", "success");
+
+        // 4. Nettoyer le formulaire et rafraîchir immédiatement les chiffres à l'écran
+        if (typeof cleanInvoiceForm === 'function') cleanInvoiceForm();
+        await selectProductionForInvoice();
+
+        if (saveBtn) saveBtn.disabled = false;
+
+    } catch (error) {
+        console.error("💥 Erreur lors de la validation de la vente:", error);
+        showMessage("Erreur critique lors de la mise à jour des stocks globaux.", "error");
+        const saveBtn = document.getElementById('saveInvoiceBtn');
+        if (saveBtn) saveBtn.disabled = false;
+    }
+}
+
+// Assurer la liaison avec l'écouteur de soumission du formulaire de facturation  
+const invoiceForm = document.getElementById('invoiceForm');
+if (invoiceForm) {
+    invoiceForm.addEventListener('submit', saveInvoice);
+}
+ 
+// Fonction utilitaire pour rafraîchir ou injecter le comportement d'affichage des grilles de ventes
+function afficherCategoriesVentes() {
+    // Utilise la fonction showCategoriesDirectly que vous possédez déjà en la forçant à s'exécuter
+    showCategoriesDirectly();
+}
+  
     </script>
    
 </body>
