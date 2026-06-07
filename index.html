@@ -1670,7 +1670,7 @@
 let modePaiementActuel = 'especes';
 let montantPayeActuel = 0;
 let statutPaiementDetaille = 'impaye';  
-
+let caisseCustomDate = null;
         let selectedItems = {};
         let currentInvoice = {
           
@@ -5891,38 +5891,357 @@ function fillInvoiceFormSimple(invoice) {
 let currentDebtInvoice = null;
 let allInvoices = [];
 
-async function loadDebts() {
-    console.log("📋 Chargement des dettes...");
+async function loadCaisseInvoices(productionId) {
+    if (!productionId) return;
     
-    const tbody = document.getElementById('debtsTableBody');
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;"><i class="fas fa-spinner fa-spin"></i> Chargement...</td></tr>';
+    const container = document.getElementById('caisseResults');
+    if (!container) return;
+    
+    container.innerHTML = `<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin"></i> Chargement...</div>`;
     
     try {
-        const snapshot = await db.collection('invoices')
-            .where('boutique', '==', currentBoutique.id)
+        // Récupérer TOUTES les factures de CETTE PRODUCTION (pas via stockAttribueId)
+        const invoicesSnapshot = await db.collection('invoices')
+            .where('productionId', '==', productionId)
             .get();
         
-        allInvoices = [];
-        snapshot.forEach(doc => {
+        const physicalInvoices = [];
+        invoicesSnapshot.forEach(doc => {
             const inv = doc.data();
-            inv.id = doc.id;
-            allInvoices.push(inv);
+            physicalInvoices.push({
+                id: doc.id,
+                ...inv,
+                productionId: productionId
+            });
         });
         
-        // Trier manuellement par date (plus récent en premier)
-        allInvoices.sort((a, b) => {
-            const dateA = a.date?.seconds ? a.date.seconds : 0;
-            const dateB = b.date?.seconds ? b.date.seconds : 0;
-            return dateB - dateA;
+        // Récupérer les commandes TikTok pour cette production
+        const tiktokSnapshot = await db.collection('orders')
+            .where('productionId', '==', productionId)
+            .get();
+        
+        const tiktokOrders = [];
+        tiktokSnapshot.forEach(doc => {
+            const order = doc.data();
+            tiktokOrders.push({
+                id: doc.id,
+                boutique: 'en-ligne',
+                boutiqueName: 'TikTok Shop',
+                productionId: productionId,
+                client: order.client || { name: 'Client TikTok' },
+                items: order.items || [],
+                total: order.total || 0,
+                paiement: {
+                    montantPaye: order.paymentReceived || 0,
+                    resteAPayer: (order.total || 0) - (order.paymentReceived || 0),
+                    statut: order.paymentStatus || 'impaye',
+                    modePaiement: order.paymentMethod || 'especes'
+                },
+                date: order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt),
+                invoiceNumber: order.orderNumber || `CMD-${doc.id.slice(0,8)}`
+            });
         });
         
-        applyDebtFilters();
-        console.log(`✅ ${allInvoices.length} factures chargées`);
+        // Fusionner
+        caisseAllInvoices = [...physicalInvoices, ...tiktokOrders];
+        
+        console.log(`✅ ${physicalInvoices.length} factures + ${tiktokOrders.length} TikTok pour cette production`);
+        
+        // Afficher les résultats
+        renderCaisseResults();
         
     } catch (error) {
-        console.error("Erreur chargement dettes:", error);
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: red;">Erreur: ' + error.message + '</td></tr>';
+        console.error("Erreur:", error);
+        container.innerHTML = `<div style="text-align: center; padding: 40px; color: red;">Erreur: ${error.message}</div>`;
     }
+}
+  
+  
+  function renderCaisseResults() {
+    const container = document.getElementById('caisseResults');
+    if (!container) return;
+    
+    let filteredInvoices = [...caisseAllInvoices];
+    
+    // Appliquer le filtre de période
+    const now = new Date();
+    let startDate, endDate;
+    
+    if (caisseCurrentPeriod === 'today') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        filteredInvoices = filteredInvoices.filter(inv => {
+            let d = inv.date instanceof Date ? inv.date : new Date(inv.date);
+            return d >= startDate && d < endDate;
+        });
+    } 
+    else if (caisseCurrentPeriod === 'week') {
+        const dayOfWeek = now.getDay();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+        startOfWeek.setHours(0, 0, 0, 0);
+        startDate = startOfWeek;
+        endDate = new Date(startOfWeek);
+        endDate.setDate(startOfWeek.getDate() + 7);
+        filteredInvoices = filteredInvoices.filter(inv => {
+            let d = inv.date instanceof Date ? inv.date : new Date(inv.date);
+            return d >= startDate && d < endDate;
+        });
+    }
+    else if (caisseCurrentPeriod === 'month') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        filteredInvoices = filteredInvoices.filter(inv => {
+            let d = inv.date instanceof Date ? inv.date : new Date(inv.date);
+            return d >= startDate && d < endDate;
+        });
+    }
+    else if (caisseCurrentPeriod === 'custom' && caisseCustomDate) {
+        const customDate = new Date(caisseCustomDate);
+        customDate.setHours(0, 0, 0, 0);
+        const nextDay = new Date(customDate);
+        nextDay.setDate(customDate.getDate() + 1);
+        filteredInvoices = filteredInvoices.filter(inv => {
+            let d = inv.date instanceof Date ? inv.date : new Date(inv.date);
+            return d >= customDate && d < nextDay;
+        });
+    }
+    
+    // Calculer les totaux
+    let totalEspeces = 0;
+    let totalWave = 0;
+    let totalOrange = 0;
+    let totalPaye = 0;
+    let totalImpaye = 0;
+    
+    filteredInvoices.forEach(inv => {
+        const montantPaye = inv.paiement?.montantPaye || 0;
+        const totalFacture = inv.total || 0;
+        totalPaye += montantPaye;
+        totalImpaye += (totalFacture - montantPaye);
+        
+        const mode = inv.paiement?.modePaiement || 'especes';
+        if (mode === 'especes') totalEspeces += montantPaye;
+        else if (mode === 'wave') totalWave += montantPaye;
+        else if (mode === 'orange') totalOrange += montantPaye;
+    });
+    
+    // Texte période
+    let periodText = '';
+    if (caisseCurrentPeriod === 'today') periodText = "Aujourd'hui";
+    else if (caisseCurrentPeriod === 'week') periodText = "Cette semaine";
+    else if (caisseCurrentPeriod === 'month') periodText = "Ce mois";
+    else if (caisseCurrentPeriod === 'custom') periodText = caisseCustomDate ? new Date(caisseCustomDate).toLocaleDateString('fr-FR') : "Date personnalisée";
+    
+    const html = `
+        <div class="caisse-period-info">
+            <span><strong>Période:</strong> ${periodText}</span>
+            <span><strong>${filteredInvoices.length}</strong> facture(s)</span>
+        </div>
+        <div class="caisse-stats-grid">
+            <div class="caisse-stat-card especes">
+                <div class="caisse-stat-icon">💵</div>
+                <div class="caisse-stat-value">${totalEspeces.toLocaleString('fr-FR')} F CFA</div>
+                <div class="caisse-stat-label">Espèces</div>
+            </div>
+            <div class="caisse-stat-card wave">
+                <div class="caisse-stat-icon">📱</div>
+                <div class="caisse-stat-value">${totalWave.toLocaleString('fr-FR')} F CFA</div>
+                <div class="caisse-stat-label">Wave</div>
+            </div>
+            <div class="caisse-stat-card orange">
+                <div class="caisse-stat-icon">📱</div>
+                <div class="caisse-stat-value">${totalOrange.toLocaleString('fr-FR')} F CFA</div>
+                <div class="caisse-stat-label">Orange Money</div>
+            </div>
+            <div class="caisse-stat-card impaye">
+                <div class="caisse-stat-icon">⚠️</div>
+                <div class="caisse-stat-value">${totalImpaye.toLocaleString('fr-FR')} F CFA</div>
+                <div class="caisse-stat-label">Impayés / Reste</div>
+            </div>
+            <div class="caisse-stat-card total">
+                <div class="caisse-stat-icon">💰</div>
+                <div class="caisse-stat-value">${totalPaye.toLocaleString('fr-FR')} F CFA</div>
+                <div class="caisse-stat-label">Total encaissé</div>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+    
+    // Afficher/masquer la section versement
+    // Fonction principale pour rafraîchir les statistiques
+async function refreshCaisseStats() {
+    const productionId = caisseCurrentProductionId;
+    
+    if (!productionId) {
+        document.getElementById('caisseResults').innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #999;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                <p>Veuillez sélectionner une production</p>
+            </div>
+        `;
+        return;
+    }
+    
+    document.getElementById('caisseResults').innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #667eea;"></i>
+            <p>Chargement des statistiques...</p>
+        </div>
+    `;
+    
+    try {
+        // Charger les factures de cette production
+        const allInvoices = await loadInvoicesForProduction(productionId);
+        
+        // Filtrer par date
+        let filteredInvoices = [...allInvoices];
+        const now = new Date();
+        let startDate, endDate;
+        
+        if (caisseCurrentPeriod === 'today') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+            filteredInvoices = filteredInvoices.filter(inv => {
+                let d = inv.date?.seconds ? new Date(inv.date.seconds * 1000) : new Date(inv.date);
+                return d >= startDate && d < endDate;
+            });
+        } 
+        else if (caisseCurrentPeriod === 'week') {
+            const dayOfWeek = now.getDay();
+            const startOfWeek = new Date(now);
+            startOfWeek.setDate(now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+            startOfWeek.setHours(0, 0, 0, 0);
+            startDate = startOfWeek;
+            endDate = new Date(startOfWeek);
+            endDate.setDate(startOfWeek.getDate() + 7);
+            filteredInvoices = filteredInvoices.filter(inv => {
+                let d = inv.date?.seconds ? new Date(inv.date.seconds * 1000) : new Date(inv.date);
+                return d >= startDate && d < endDate;
+            });
+        }
+        else if (caisseCurrentPeriod === 'month') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            filteredInvoices = filteredInvoices.filter(inv => {
+                let d = inv.date?.seconds ? new Date(inv.date.seconds * 1000) : new Date(inv.date);
+                return d >= startDate && d < endDate;
+            });
+        }
+        else if (caisseCurrentPeriod === 'custom' && caisseCustomDate) {
+            const customDate = new Date(caisseCustomDate);
+            customDate.setHours(0, 0, 0, 0);
+            const nextDay = new Date(customDate);
+            nextDay.setDate(customDate.getDate() + 1);
+            filteredInvoices = filteredInvoices.filter(inv => {
+                let d = inv.date?.seconds ? new Date(inv.date.seconds * 1000) : new Date(inv.date);
+                return d >= customDate && d < nextDay;
+            });
+        }
+        
+        // Calculer les stats
+        let totalEspeces = 0, totalWave = 0, totalOrange = 0, totalPaye = 0, totalImpaye = 0;
+        
+        filteredInvoices.forEach(inv => {
+            const montantPaye = inv.paiement?.montantPaye || 0;
+            const totalFacture = inv.total || 0;
+            totalPaye += montantPaye;
+            totalImpaye += (totalFacture - montantPaye);
+            
+            const mode = inv.paiement?.modePaiement || 'especes';
+            if (mode === 'especes') totalEspeces += montantPaye;
+            else if (mode === 'wave') totalWave += montantPaye;
+            else if (mode === 'orange') totalOrange += montantPaye;
+        });
+        
+        let periodText = '';
+        if (caisseCurrentPeriod === 'today') periodText = "Aujourd'hui";
+        else if (caisseCurrentPeriod === 'week') periodText = "Cette semaine";
+        else if (caisseCurrentPeriod === 'month') periodText = "Ce mois";
+        else if (caisseCurrentPeriod === 'custom') periodText = caisseCustomDate ? new Date(caisseCustomDate).toLocaleDateString('fr-FR') : "Date personnalisée";
+        
+        const html = `
+            <div class="caisse-period-info">
+                <span><strong>Période:</strong> ${periodText}</span>
+                <span><strong>${filteredInvoices.length}</strong> facture(s)</span>
+            </div>
+            <div class="caisse-stats-grid">
+                <div class="caisse-stat-card especes">
+                    <div class="caisse-stat-icon">💵</div>
+                    <div class="caisse-stat-value">${totalEspeces.toLocaleString('fr-FR')} F CFA</div>
+                    <div class="caisse-stat-label">Espèces</div>
+                </div>
+                <div class="caisse-stat-card wave">
+                    <div class="caisse-stat-icon">📱</div>
+                    <div class="caisse-stat-value">${totalWave.toLocaleString('fr-FR')} F CFA</div>
+                    <div class="caisse-stat-label">Wave</div>
+                </div>
+                <div class="caisse-stat-card orange">
+                    <div class="caisse-stat-icon">📱</div>
+                    <div class="caisse-stat-value">${totalOrange.toLocaleString('fr-FR')} F CFA</div>
+                    <div class="caisse-stat-label">Orange Money</div>
+                </div>
+                <div class="caisse-stat-card impaye">
+                    <div class="caisse-stat-icon">⚠️</div>
+                    <div class="caisse-stat-value">${totalImpaye.toLocaleString('fr-FR')} F CFA</div>
+                    <div class="caisse-stat-label">Impayés / Reste</div>
+                </div>
+                <div class="caisse-stat-card total">
+                    <div class="caisse-stat-icon">💰</div>
+                    <div class="caisse-stat-value">${totalPaye.toLocaleString('fr-FR')} F CFA</div>
+                    <div class="caisse-stat-label">Total encaissé</div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('caisseResults').innerHTML = html;
+        
+        // ========== SECTION VERSEMENT CORRIGÉE ==========
+        const versSection = document.getElementById('versementGerantSection');
+        if (versSection) {
+            if (totalPaye > 0) {
+                // Afficher le TOTAL ENCAISSÉ (tous modes confondus)
+                document.getElementById('versTotalEncaisse').innerHTML = totalPaye.toLocaleString('fr-FR') + ' F CFA';
+                
+                // Récupérer les versements déjà effectués pour cette production
+                const versementsSnapshot = await db.collection('versements')
+                    .where('boutiqueId', '==', currentBoutique.id)
+                    .where('productionId', '==', productionId)
+                    .get();
+                
+                let totalVerse = 0;
+                versementsSnapshot.forEach(doc => {
+                    totalVerse += doc.data().montant || 0;
+                });
+                
+                const resteAVerser = totalPaye - totalVerse;
+                
+                document.getElementById('versDejaVerse').innerHTML = totalVerse.toLocaleString('fr-FR') + ' F CFA';
+                document.getElementById('versReste').innerHTML = resteAVerser.toLocaleString('fr-FR') + ' F CFA';
+                
+                const montantInput = document.getElementById('versMontant');
+                if (montantInput) {
+                    montantInput.value = resteAVerser > 0 ? resteAVerser : 0;
+                    montantInput.max = resteAVerser > 0 ? resteAVerser : 0;
+                }
+                
+                versSection.style.display = 'block';
+            } else {
+                versSection.style.display = 'none';
+            }
+        }
+        
+    } catch (error) {
+        console.error("Erreur:", error);
+        document.getElementById('caisseResults').innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #ef4444;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                <p>Erreur: ${error.message}</p>
+            </div>
+        `;
+    }
+}
 }
 
 // Appliquer les filtres
@@ -6230,38 +6549,18 @@ async function loadInvoicesForProduction(productionId) {
     console.log(`📋 Chargement factures pour production: ${productionId}`);
     
     try {
-        // Récupérer d'abord le stock attribué pour cette production
-        const stocksSnapshot = await db.collection('stocks_attribues')
+        // Récupérer DIRECTEMENT les factures avec productionId
+        const invoicesSnapshot = await db.collection('invoices')
             .where('productionId', '==', productionId)
-            .where('boutique', '==', currentBoutique.id)
             .get();
         
-        if (stocksSnapshot.empty) {
-            console.log("Aucun stock attribué trouvé pour cette production");
-            return [];
-        }
-        
-        // Récupérer tous les IDs de stock
-        const stockIds = [];
-        stocksSnapshot.forEach(doc => {
-            stockIds.push(doc.id);
-        });
-        
-        // Récupérer toutes les factures liées à ces stocks
         const allInvoices = [];
-        
-        for (const stockId of stockIds) {
-            const invoicesSnapshot = await db.collection('invoices')
-                .where('stockAttribueId', '==', stockId)
-                .get();
-            
-            invoicesSnapshot.forEach(doc => {
-                allInvoices.push({
-                    id: doc.id,
-                    ...doc.data()
-                });
+        invoicesSnapshot.forEach(doc => {
+            allInvoices.push({
+                id: doc.id,
+                ...doc.data()
             });
-        }
+        });
         
         console.log(`📊 ${allInvoices.length} factures trouvées pour cette production`);
         return allInvoices;
@@ -6531,10 +6830,9 @@ function enregistrerVersement() {
     });
 }
 // Fonction principale pour rafraîchir les statistiques
-async function refreshCaisseStats() {
+// Fonction principale pour rafraîchir les statistiques
+function refreshCaisseStats() {
     const productionId = caisseCurrentProductionId;
-    const period = caisseCurrentPeriod;
-    const customDate = document.getElementById('caisseCustomDate').value;
     
     if (!productionId) {
         document.getElementById('caisseResults').innerHTML = `
@@ -6546,7 +6844,6 @@ async function refreshCaisseStats() {
         return;
     }
     
-    // Afficher le chargement
     document.getElementById('caisseResults').innerHTML = `
         <div style="text-align: center; padding: 40px;">
             <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #667eea;"></i>
@@ -6554,37 +6851,168 @@ async function refreshCaisseStats() {
         </div>
     `;
     
-    try {
-        // Charger toutes les factures de la production
-        const allInvoices = await loadInvoicesForProduction(productionId);
-        
-        // Filtrer par date
-        let filteredInvoices;
-        if (period === 'custom' && customDate) {
-            filteredInvoices = filterInvoicesByDate(allInvoices, 'custom', customDate);
-        } else {
-            filteredInvoices = filterInvoicesByDate(allInvoices, period);
-        }
-        
-        // Calculer les statistiques
-        const stats = calculateCaisseStats(filteredInvoices);
-        
-        // Trouver le nom de la production
-        const production = caisseProductions.find(p => p.id === productionId);
-        const productionName = production ? `Production du ${production.dateStr}` : 'Production';
-        
-        // Afficher les résultats
-        displayCaisseStats(stats, period, filteredInvoices, productionName);
-        
-    } catch (error) {
-        console.error("Erreur:", error);
-        document.getElementById('caisseResults').innerHTML = `
-            <div style="text-align: center; padding: 40px; color: #ef4444;">
-                <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 15px;"></i>
-                <p>Erreur: ${error.message}</p>
-            </div>
-        `;
-    }
+    // Charger les factures de cette production
+    db.collection('invoices')
+        .where('productionId', '==', productionId)
+        .get()
+        .then(invoicesSnapshot => {
+            let allInvoices = [];
+            invoicesSnapshot.forEach(doc => {
+                allInvoices.push({ id: doc.id, ...doc.data() });
+            });
+            
+            // Filtrer par date
+            let filteredInvoices = [...allInvoices];
+            const now = new Date();
+            let startDate, endDate;
+            
+            if (caisseCurrentPeriod === 'today') {
+                startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                filteredInvoices = filteredInvoices.filter(inv => {
+                    let d = inv.date?.seconds ? new Date(inv.date.seconds * 1000) : new Date(inv.date);
+                    return d >= startDate && d < endDate;
+                });
+            } 
+            else if (caisseCurrentPeriod === 'week') {
+                const dayOfWeek = now.getDay();
+                const startOfWeek = new Date(now);
+                startOfWeek.setDate(now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+                startOfWeek.setHours(0, 0, 0, 0);
+                startDate = startOfWeek;
+                endDate = new Date(startOfWeek);
+                endDate.setDate(startOfWeek.getDate() + 7);
+                filteredInvoices = filteredInvoices.filter(inv => {
+                    let d = inv.date?.seconds ? new Date(inv.date.seconds * 1000) : new Date(inv.date);
+                    return d >= startDate && d < endDate;
+                });
+            }
+            else if (caisseCurrentPeriod === 'month') {
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                filteredInvoices = filteredInvoices.filter(inv => {
+                    let d = inv.date?.seconds ? new Date(inv.date.seconds * 1000) : new Date(inv.date);
+                    return d >= startDate && d < endDate;
+                });
+            }
+            else if (caisseCurrentPeriod === 'custom' && caisseCustomDate) {
+                const customDate = new Date(caisseCustomDate);
+                customDate.setHours(0, 0, 0, 0);
+                const nextDay = new Date(customDate);
+                nextDay.setDate(customDate.getDate() + 1);
+                filteredInvoices = filteredInvoices.filter(inv => {
+                    let d = inv.date?.seconds ? new Date(inv.date.seconds * 1000) : new Date(inv.date);
+                    return d >= customDate && d < nextDay;
+                });
+            }
+            
+            // Calculer les stats
+            let totalEspeces = 0, totalWave = 0, totalOrange = 0, totalPaye = 0, totalImpaye = 0;
+            
+            filteredInvoices.forEach(inv => {
+                const montantPaye = inv.paiement?.montantPaye || 0;
+                const totalFacture = inv.total || 0;
+                totalPaye += montantPaye;
+                totalImpaye += (totalFacture - montantPaye);
+                
+                const mode = inv.paiement?.modePaiement || 'especes';
+                if (mode === 'especes') totalEspeces += montantPaye;
+                else if (mode === 'wave') totalWave += montantPaye;
+                else if (mode === 'orange') totalOrange += montantPaye;
+            });
+            
+            let periodText = '';
+            if (caisseCurrentPeriod === 'today') periodText = "Aujourd'hui";
+            else if (caisseCurrentPeriod === 'week') periodText = "Cette semaine";
+            else if (caisseCurrentPeriod === 'month') periodText = "Ce mois";
+            else if (caisseCurrentPeriod === 'custom') periodText = caisseCustomDate ? new Date(caisseCustomDate).toLocaleDateString('fr-FR') : "Date personnalisée";
+            
+            const html = `
+                <div class="caisse-period-info">
+                    <span><strong>Période:</strong> ${periodText}</span>
+                    <span><strong>${filteredInvoices.length}</strong> facture(s)</span>
+                </div>
+                <div class="caisse-stats-grid">
+                    <div class="caisse-stat-card especes">
+                        <div class="caisse-stat-icon">💵</div>
+                        <div class="caisse-stat-value">${totalEspeces.toLocaleString('fr-FR')} F CFA</div>
+                        <div class="caisse-stat-label">Espèces</div>
+                    </div>
+                    <div class="caisse-stat-card wave">
+                        <div class="caisse-stat-icon">📱</div>
+                        <div class="caisse-stat-value">${totalWave.toLocaleString('fr-FR')} F CFA</div>
+                        <div class="caisse-stat-label">Wave</div>
+                    </div>
+                    <div class="caisse-stat-card orange">
+                        <div class="caisse-stat-icon">📱</div>
+                        <div class="caisse-stat-value">${totalOrange.toLocaleString('fr-FR')} F CFA</div>
+                        <div class="caisse-stat-label">Orange Money</div>
+                    </div>
+                    <div class="caisse-stat-card impaye">
+                        <div class="caisse-stat-icon">⚠️</div>
+                        <div class="caisse-stat-value">${totalImpaye.toLocaleString('fr-FR')} F CFA</div>
+                        <div class="caisse-stat-label">Impayés / Reste</div>
+                    </div>
+                    <div class="caisse-stat-card total">
+                        <div class="caisse-stat-icon">💰</div>
+                        <div class="caisse-stat-value">${totalPaye.toLocaleString('fr-FR')} F CFA</div>
+                        <div class="caisse-stat-label">Total encaissé</div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('caisseResults').innerHTML = html;
+            
+            // ========== SECTION VERSEMENT CORRIGÉE (sans await) ==========
+            const versSection = document.getElementById('versementGerantSection');
+            if (versSection) {
+                if (totalPaye > 0) {
+                    // Afficher le TOTAL ENCAISSÉ (tous modes confondus)
+                    document.getElementById('versTotalEncaisse').innerHTML = totalPaye.toLocaleString('fr-FR') + ' F CFA';
+                    
+                    // Récupérer les versements déjà effectués (sans await)
+                    db.collection('versements')
+                        .where('boutiqueId', '==', currentBoutique.id)
+                        .where('productionId', '==', productionId)
+                        .get()
+                        .then(versementsSnapshot => {
+                            let totalVerse = 0;
+                            versementsSnapshot.forEach(doc => {
+                                totalVerse += doc.data().montant || 0;
+                            });
+                            
+                            const resteAVerser = totalPaye - totalVerse;
+                            
+                            document.getElementById('versDejaVerse').innerHTML = totalVerse.toLocaleString('fr-FR') + ' F CFA';
+                            document.getElementById('versReste').innerHTML = resteAVerser.toLocaleString('fr-FR') + ' F CFA';
+                            
+                            const montantInput = document.getElementById('versMontant');
+                            if (montantInput) {
+                                montantInput.value = resteAVerser > 0 ? resteAVerser : 0;
+                                montantInput.max = resteAVerser > 0 ? resteAVerser : 0;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Erreur chargement versements:', error);
+                            document.getElementById('versDejaVerse').innerHTML = '0 F CFA';
+                            document.getElementById('versReste').innerHTML = totalPaye.toLocaleString('fr-FR') + ' F CFA';
+                        });
+                    
+                    versSection.style.display = 'block';
+                } else {
+                    versSection.style.display = 'none';
+                }
+            }
+        })
+        .catch(error => {
+            console.error("Erreur:", error);
+            document.getElementById('caisseResults').innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #ef4444;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                    <p>Erreur: ${error.message}</p>
+                </div>
+            `;
+        });
 }
 
 // Afficher la page Caisse
@@ -6660,7 +7088,17 @@ document.getElementById('debtStatusFilter')?.addEventListener('change', applyDeb
   
   
   
-  
+  async function refreshCaisse() {
+    if (caisseCurrentProductionId) {
+        await loadCaisseInvoices(caisseCurrentProductionId);
+    } else {
+        const select = document.getElementById('caisseProductionSelect');
+        if (select && select.value) {
+            caisseCurrentProductionId = select.value;
+            await loadCaisseInvoices(caisseCurrentProductionId);
+        }
+    }
+}
   // ============================================
 // SYNCHRONISATION CAISSE AVEC LES FACTURES (CORRIGÉE)
 // ============================================
@@ -6831,4 +7269,4 @@ if (document.getElementById('productionSelect')) {
     </script>
    
 </body>
-</html>   
+</html>      
