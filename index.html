@@ -6246,6 +6246,10 @@ async function refreshCaisseStats() {
 
 // Appliquer les filtres
 function applyDebtFilters() {
+    if (!currentBoutique || !currentBoutique.id) {
+        console.warn("Pas de boutique définie");
+        return;
+    }
     const searchTerm = document.getElementById('debtSearchInput').value.toLowerCase();
     const statusFilter = document.getElementById('debtStatusFilter').value;
     
@@ -6328,8 +6332,19 @@ function displayDebtsTable(invoices) {
 
 // Afficher le détail d'une dette
 async function showDebtDetail(invoiceId) {
-    const doc = await db.collection('invoices').doc(invoiceId).get();
-    if (!doc.exists) return;
+     const doc = await db.collection('invoices').doc(invoiceId).get();
+    if (!doc.exists) {
+        showMessage('Facture non trouvée', 'error');
+        return;
+    }
+    
+    const invoice = doc.data();
+    
+    // CRITIQUE: Vérifier que la facture appartient à cette boutique
+    if (invoice.boutique !== currentBoutique.id) {
+        showMessage('Accès non autorisé à cette facture', 'error');
+        return;
+    }
     
     currentDebtInvoice = { id: doc.id, ...doc.data() };
     const inv = currentDebtInvoice;
@@ -6481,7 +6496,52 @@ function closeDebtModal() {
     currentDebtInvoice = null;
 }
 
-  
+async function loadDebts() {
+    console.log("📋 Chargement des dettes pour:", currentBoutique?.name);
+    
+    if (!currentBoutique || !currentBoutique.id) {
+        const tbody = document.getElementById('debtsTableBody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:#ef4444;">⚠️ Erreur: Boutique non reconnue. Veuillez vous reconnecter.</td></tr>';
+        }
+        return;
+    }
+    
+    const tbody = document.getElementById('debtsTableBody');
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin"></i> Chargement...</td></tr>';
+    
+    try {
+        // SOLUTION TEMPORAIRE : Récupérer TOUTES les factures de la boutique
+        // puis filtrer manuellement par resteAPayer > 0
+        const snapshot = await db.collection('invoices')
+            .where('boutique', '==', currentBoutique.id)
+            .get();
+        
+        allInvoices = [];
+        snapshot.forEach(doc => {
+            const invoice = { id: doc.id, ...doc.data() };
+            const resteAPayer = invoice.paiement?.resteAPayer || 
+                               (invoice.total - (invoice.paiement?.montantPaye || 0));
+            
+            // Filtrer manuellement les dettes (reste à payer > 0)
+            if (resteAPayer > 0) {
+                // Ajouter le champ calculé
+                invoice.paiement = invoice.paiement || {};
+                invoice.paiement.resteAPayer = resteAPayer;
+                allInvoices.push(invoice);
+            }
+        });
+        
+        console.log(`📊 ${allInvoices.length} dettes trouvées pour ${currentBoutique.name}`);
+        
+        // Appliquer les filtres
+        applyDebtFilters();
+        
+    } catch (error) {
+        console.error("Erreur chargement dettes:", error);
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:#ef4444;">❌ Erreur: ${error.message}</td></tr>`;
+    }
+}
   
   // ==============================================
 // PAGE CAISSE - STATISTIQUES DE PAIEMENT
