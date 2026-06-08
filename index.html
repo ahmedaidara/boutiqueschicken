@@ -6702,8 +6702,8 @@ function displayCaisseStats(stats, period, invoices, productionName) {
         detailsHtml += `</tbody></table></div></div>`;
     } else {
         detailsHtml = `<div class="caisse-details"><div style="text-align:center;padding:40px;">Aucune vente</div></div>`;
-    }
-    
+    }  
+     
     const html = `
         <div class="caisse-period-info">
             <span><strong>Période:</strong> ${periodText}</span>
@@ -6853,8 +6853,9 @@ function refreshCaisseStats() {
     
     // Charger les factures de cette production
     db.collection('invoices')
-        .where('productionId', '==', productionId)
-        .get()
+    .where('productionId', '==', productionId)
+    .where('boutique', '==', currentBoutique.id)
+    .get()
         .then(invoicesSnapshot => {
             let allInvoices = [];
             invoicesSnapshot.forEach(doc => {
