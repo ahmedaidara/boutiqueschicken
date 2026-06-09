@@ -2196,7 +2196,6 @@ function debugStocks() {
 let updatingSummary = false;
 
 function updateSummary() {
-    // Éviter les appels en cascade
     if (updatingSummary) return;
     updatingSummary = true;
     
@@ -2204,17 +2203,8 @@ function updateSummary() {
         selectedItems = {};
         let total = 0;
         
-        // Récupérer toutes les quantités
         document.querySelectorAll('.category-input').forEach(input => {
-            // Lire la valeur SANS déclencher d'événement
-            let quantity = 0;
-            try {
-                quantity = parseInt(input.value) || 0;
-            } catch(e) {
-                quantity = 0;
-            }
-            
-            // Limiter au maximum autorisé
+            let quantity = parseInt(input.value) || 0;
             const max = parseInt(input.max) || 9999;
             if (quantity > max) {
                 quantity = max;
@@ -2225,7 +2215,21 @@ function updateSummary() {
                 const id = input.getAttribute('data-id');
                 const name = input.getAttribute('data-name');
                 const weight = input.getAttribute('data-weight');
-                const price = parseInt(input.getAttribute('data-price'));
+                let price = parseInt(input.getAttribute('data-price')) || 0;
+                
+                // Si c'est la catégorie SANS POIDS (id=9), prendre le prix du champ libre
+                const isPrixLibre = input.getAttribute('data-prix-libre') === 'true';
+                if (isPrixLibre && id === '9') {
+                    const prixLibreInput = document.getElementById(`prix-libre-${id}`);
+                    if (prixLibreInput) {
+                        price = parseInt(prixLibreInput.value) || 0;
+                        // Mettre à jour l'affichage du prix dans la carte
+                        const priceDisplay = document.getElementById(`price-display-${id}`);
+                        if (priceDisplay && price > 0) {
+                            priceDisplay.innerHTML = price.toLocaleString('fr-FR') + ' F CFA';
+                        }
+                    }
+                }
                 
                 selectedItems[id] = {
                     id: id,
@@ -2240,7 +2244,6 @@ function updateSummary() {
             }
         });
         
-        // Mettre à jour l'affichage
         const totalAmountEl = document.getElementById('totalAmount');
         if (totalAmountEl) {
             totalAmountEl.textContent = total.toLocaleString('fr-FR') + ' F CFA';
@@ -2248,8 +2251,6 @@ function updateSummary() {
         
         updateSelectedItemsList();
         
-        // Mettre à jour les montants de paiement
-        const totalMontant = total;
         const montantPayeInput = document.getElementById('montantPayeInput');
         const montantPaye = montantPayeInput ? (parseInt(montantPayeInput.value) || 0) : 0;
         
@@ -2257,14 +2258,13 @@ function updateSummary() {
         const payeCalcEl = document.getElementById('montantPayeCalc');
         const resteCalcEl = document.getElementById('montantResteCalc');
         
-        if (totalCalcEl) totalCalcEl.textContent = totalMontant.toLocaleString('fr-FR') + ' F CFA';
+        if (totalCalcEl) totalCalcEl.textContent = total.toLocaleString('fr-FR') + ' F CFA';
         if (payeCalcEl) payeCalcEl.textContent = montantPaye.toLocaleString('fr-FR') + ' F CFA';
-        if (resteCalcEl) resteCalcEl.textContent = Math.max(0, totalMontant - montantPaye).toLocaleString('fr-FR') + ' F CFA';
+        if (resteCalcEl) resteCalcEl.textContent = Math.max(0, total - montantPaye).toLocaleString('fr-FR') + ' F CFA';
         
     } catch(error) {
         console.error("Erreur updateSummary:", error);
     } finally {
-        // Réactiver après un court délai
         setTimeout(() => {
             updatingSummary = false;
         }, 100);
@@ -2499,14 +2499,35 @@ async function saveInvoice() {
                 phone: clientPhone || 'Non renseigné',
                 address: document.getElementById('clientAddress').value.trim() || 'Non renseigné'
             },
-            items: Object.values(selectedItems).map(item => ({
-                id: item.id.toString(),
+                // Données des items avec gestion du prix libre
+    items: (() => {
+        const itemsData = [];
+        for (const [id, item] of Object.entries(selectedItems)) {
+            let finalPrice = item.price;
+            
+            // Pour la catégorie SANS POIDS (id=9), récupérer le prix saisi
+            if (id === '9') {
+                const prixLibreInput = document.getElementById(`prix-libre-${id}`);
+                if (prixLibreInput) {
+                    finalPrice = parseInt(prixLibreInput.value) || 0;
+                    if (finalPrice === 0 && item.quantity > 0) {
+                        showMessage('⚠️ Veuillez saisir un prix pour la catégorie "SANS POIDS"', 'error');
+                        throw new Error('Prix manquant');
+                    }
+                }
+            }
+            
+            itemsData.push({
+                id: id.toString(),
                 name: item.name,
                 weight: item.weight,
-                price: item.price,
+                price: finalPrice,
                 quantity: item.quantity,
-                subtotal: item.quantity * item.price
-            })),
+                subtotal: item.quantity * finalPrice
+            });
+        }
+        return itemsData;
+    })(),
             total: totalAmount,
             paiement: paiementData,
             date: firebase.firestore.FieldValue.serverTimestamp(),
@@ -3046,25 +3067,32 @@ async function generatePDF() {
     doc.setTextColor(30, 41, 59);
     doc.setFontSize(9);
     
-    invoice.items.forEach((item, index) => {
-        if (currentY > 250) {
-            doc.addPage();
-            currentY = 20;
-        }
-        
-        // Alterner les couleurs de fond
-        if (index % 2 === 0) {
-            doc.setFillColor(249, 250, 251);
-            doc.rect(margin, currentY - 4, pageWidth - (margin * 2), 10, 'F');
-        }
-        
-        doc.text(`${item.name} (${item.weight})`, margin + 5, currentY);
-        doc.text(item.quantity.toString(), margin + 100, currentY);
-        doc.text(`${item.price.toLocaleString('fr-FR')}`, margin + 130, currentY);
-        doc.text(`${item.subtotal.toLocaleString('fr-FR')} F CFA`, pageWidth - margin - 30, currentY, { align: 'right' });
-        
-        currentY += 8;
-    });
+   invoice.items.forEach((item, index) => {
+    if (currentY > 250) {
+        doc.addPage();
+        currentY = 20;
+    }
+    
+    if (index % 2 === 0) {
+        doc.setFillColor(249, 250, 251);
+        doc.rect(margin, currentY - 4, pageWidth - (margin * 2), 10, 'F');
+    }
+    
+    // Affichage du prix (gérer "SANS POIDS")
+    let prixAffichage = '';
+    if (item.price > 0) {
+        prixAffichage = `${item.price.toLocaleString('fr-FR')} F CFA`;
+    } else {
+        prixAffichage = 'Prix libre';
+    }
+    
+    doc.text(`${item.name} (${item.weight})`, margin + 5, currentY);
+    doc.text(item.quantity.toString(), margin + 100, currentY);
+    doc.text(prixAffichage, margin + 130, currentY);
+    doc.text(`${item.subtotal.toLocaleString('fr-FR')} F CFA`, pageWidth - margin - 30, currentY, { align: 'right' });
+    
+    currentY += 8;
+});
     
     currentY += 5;
     
@@ -4511,13 +4539,7 @@ function displayGlobalCategories(production) {
         return;
     }
     
-    console.log("Production reçue:", production);
-    console.log("Clés disponibles:", Object.keys(production));
-    
-    // Détection automatique des champs de catégories
-    // Chercher les champs qui commencent par "small1", "small2", etc.
     const possibleFields = ['small1', 'small2', 'medium1', 'medium2', 'large1', 'large2', 'xlarge1', 'xlarge2'];
-    
     const categoriesList = [];
     
     possibleFields.forEach((field, index) => {
@@ -4525,7 +4547,6 @@ function displayGlobalCategories(production) {
         const soldKey = `${field}Sold`;
         const priceKey = `${field}Price`;
         
-        // Vérifier si la production a ces champs
         if (production.hasOwnProperty(qtyKey) || production.hasOwnProperty(soldKey)) {
             const total = production[qtyKey] || 0;
             const vendu = production[soldKey] || 0;
@@ -4562,41 +4583,65 @@ function displayGlobalCategories(production) {
         }
     });
     
-    console.log("Catégories détectées:", categoriesList);
-    
-    // Filtrer celles avec stock > 0
     const categoriesAvecStock = categoriesList.filter(cat => cat.restant > 0);
     
+    // AJOUTER LA CATEGORIE SANS POIDS (FORCÉE)
+    const sansPoidsCategory = {
+        id: 9,
+        name: "🐔 SANS POIDS",
+        weight: "Prix libre ",
+        restant: 999999,
+        prix: 0
+    };
+    categoriesAvecStock.push(sansPoidsCategory);
+    
     if (categoriesAvecStock.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: #999; grid-column: 1/-1;">
-                <i class="fas fa-box-open" style="font-size: 3rem; margin-bottom: 15px;"></i>
-                <h3>Aucune catégorie disponible</h3>
-                <p>Ce stock ne contient aucun poulet restant</p>
-                <button onclick="selectProductionForInvoice()" style="margin-top:15px;padding:10px20px;background:#667eea;color:white;border:none;border-radius:8px;cursor:pointer;">
-                    <i class="fas fa-arrow-left"></i> Changer de production
-                </button>
-            </div>
-        `;
+        container.innerHTML = `<div style="text-align:center;padding:40px;">Aucune catégorie disponible</div>`;
         return;
     }
     
-    // Afficher les catégories
     categoriesAvecStock.forEach(cat => {
         const card = document.createElement('div');
         card.className = 'category-card';
         card.style.borderColor = currentBoutique && currentBoutique.id === 'sacre-coeur' ? '#3B82F6' : '#10B981';
-        card.innerHTML = `
+        
+        let innerHTML = `
             <div class="category-header">
                 <div class="category-name">${cat.name}</div>
-                <div class="category-price">${cat.prix.toLocaleString('fr-FR')} F CFA</div>
+                <div class="category-price" id="price-display-${cat.id}">
+                    ${cat.prix > 0 ? cat.prix.toLocaleString('fr-FR') + ' F CFA' : '💰 Prix libre'}
+                </div>
             </div>
             <div style="color: #666; margin-bottom: 10px; font-size: 0.9rem;">
                 ${cat.weight}
             </div>
-            <div style="background: #f0fdf4; padding: 8px; border-radius: 8px; margin-bottom: 10px; text-align: center;">
-                <span style="color: #10b981; font-weight: bold;">📦 Stock disponible: ${cat.restant}</span>
-            </div>
+        `;
+        
+        // Si c'est la catégorie SANS POIDS (id=9), ajouter un champ pour saisir le prix
+        if (cat.id === 9) {
+            innerHTML += `
+                <div style="background: #fef3c7; padding: 8px; border-radius: 8px; margin-bottom: 10px; text-align: center;">
+                    <label style="display: block; font-size: 0.8rem; color: #92400e; margin-bottom: 5px;">
+                        💰 PRIX UNITAIRE (F CFA)
+                    </label>
+                    <input type="number" 
+                           id="prix-libre-${cat.id}"
+                           class="prix-libre-input"
+                           value="0"
+                           min="0"
+                           step="100"
+                           style="width: 100%; padding: 10px; border: 2px solid #f59e0b; border-radius: 8px; text-align: center; font-size: 1rem;">
+                </div>
+            `;
+        } else {
+            innerHTML += `
+                <div style="background: #f0fdf4; padding: 8px; border-radius: 8px; margin-bottom: 10px; text-align: center;">
+                    <span style="color: #10b981; font-weight: bold;">📦 Stock disponible: ${cat.restant}</span>
+                </div>
+            `;
+        }
+        
+        innerHTML += `
             <input type="number" 
                    class="category-input" 
                    id="cat-${cat.id}"
@@ -4605,15 +4650,18 @@ function displayGlobalCategories(production) {
                    data-weight="${cat.weight}"
                    data-price="${cat.prix}"
                    data-max="${cat.restant}"
+                   ${cat.id === 9 ? 'data-prix-libre="true"' : ''}
                    min="0"
-                   max="${cat.restant}"
+                   max="${cat.id === 9 ? 999999 : cat.restant}"
                    value="0"
                    placeholder="Quantité">
         `;
+        
+        card.innerHTML = innerHTML;
         container.appendChild(card);
     });
     
-    // Ajouter les événements
+    // Ajouter les événements pour les inputs normaux
     container.querySelectorAll('.category-input').forEach(input => {
         input.addEventListener('input', function(e) {
             let val = parseInt(this.value) || 0;
@@ -4621,6 +4669,21 @@ function displayGlobalCategories(production) {
             if (val > max) this.value = max;
             if (val < 0) this.value = 0;
             updateSummary();
+        });
+    });
+    
+    // Ajouter les événements pour les champs de prix libre (catégorie 9)
+    const prixLibreInputs = document.querySelectorAll('.prix-libre-input');
+    prixLibreInputs.forEach(prixInput => {
+        prixInput.addEventListener('input', function() {
+            // Mettre à jour le data-price de l'input quantité correspondant
+            const catId = this.id.replace('prix-libre-', '');
+            const qtyInput = document.getElementById(`cat-${catId}`);
+            if (qtyInput) {
+                const newPrix = parseInt(this.value) || 0;
+                qtyInput.setAttribute('data-price', newPrix);
+                updateSummary();
+            }
         });
     });
 }
