@@ -1234,6 +1234,69 @@
     flex-wrap: wrap;
     gap: 10px;
 }
+      
+      /* Styles pour la page Stock */
+.stock-category-card {
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+    transition: all 0.3s;
+}
+
+.stock-category-card:hover {
+    border-color: #10b981;
+    transform: translateY(-2px);
+}
+
+.stock-category-name {
+    font-weight: bold;
+    color: #1e293b;
+    font-size: 0.9rem;
+}
+
+.stock-category-weight {
+    font-size: 0.7rem;
+    color: #64748b;
+    margin: 5px 0;
+}
+
+.stock-category-input {
+    width: 100%;
+    padding: 8px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1rem;
+    margin-top: 8px;
+}
+
+.stock-category-input:focus {
+    border-color: #10b981;
+    outline: none;
+}
+
+.current-stock-card {
+    background: white;
+    border-radius: 12px;
+    padding: 15px;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.current-stock-number {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #10b981;
+}
+
+.history-row:hover {
+    background: #f8fafc;
+}
+      
     </style>
 </head>
 <body>
@@ -1276,17 +1339,22 @@
         </div>
         
         <div class="buttons-grid">
+            <button id="selectProductionBtn" class="action-btn">
+    <i class="fas fa-clipboard-list"></i>
+    <span style="font-size: 1.2rem; font-weight: bold;">Nouvelle Facture</span>
+    <small>Sélectionner une production</small>
+</button>
           <button id="caisseBtn" class="action-btn">
     <i class="fas fa-cash-register"></i>
     <span style="font-size: 1.2rem; font-weight: bold;">Caisse</span>
     <small>Statistiques de paiement</small>
 </button>
-           <button id="selectProductionBtn" class="action-btn">
-    <i class="fas fa-clipboard-list"></i>
-    <span style="font-size: 1.2rem; font-weight: bold;">Nouvelle Facture</span>
-    <small>Sélectionner une production</small>
+         
+            <button id="stockBtn" class="action-btn" style="display: none;">
+    <i class="fas fa-boxes"></i>
+    <span style="font-size: 1.2rem; font-weight: bold;">Stock</span>
+    <small>Gérer les stocks</small>
 </button>
-            
             <button id="historyBtn" class="action-btn">
                 <i class="fas fa-history"></i>
                 <span style="font-size: 1.2rem; font-weight: bold;">Historique</span>
@@ -1889,7 +1957,7 @@ async function syncStockWithSales(stockAttribueId, boutiqueId) {
                 }
                 loginSuccess();
             } else {
-                // Fallback aux codes par défaut
+                // Fallback aux cdes pardé
                 if (BOUTIQUE_CONFIG[enteredCode]) {
                     currentBoutique = BOUTIQUE_CONFIG[enteredCode];
                     loginSuccess();
@@ -1909,7 +1977,7 @@ async function syncStockWithSales(stockAttribueId, boutiqueId) {
         });
 }
         
-        // Connexion réussie
+        // Connexion résie
         function loginSuccess() {
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('mainInterface').style.display = 'block';
@@ -1917,7 +1985,7 @@ async function syncStockWithSales(stockAttribueId, boutiqueId) {
             // Mettre à jour l'interface avec le nom de la boutique
             document.querySelector('.header h2').innerHTML = 
                 `DAKAR CHICKEN EXPRESS<br><small style="color: ${currentBoutique.id === 'sacre-coeur' ? '#3B82F6' : '#10B981'};">${currentBoutique.name}</small>`;
-            
+             updateStockButtonVisibility(); 
             showMessage(`Bienvenue - ${currentBoutique.name}`, 'success');
         }
         
@@ -4585,7 +4653,7 @@ function displayGlobalCategories(production) {
     
     const categoriesAvecStock = categoriesList.filter(cat => cat.restant > 0);
     
-    // AJOUTER LA CATEGORIE SANS POIDS (FORCÉE)
+    // AJOUTER LA CATEGE OIDS (FORCÉE)
     const sansPoidsCategory = {
         id: 9,
         name: "🐔 SANS POIDS",
@@ -7390,7 +7458,438 @@ if (document.getElementById('productionSelect')) {
         }, 500);
     });
 } 
+  
+  // ==============================================
+// PAGE STOCK - POUR LES 3 BOUTIQUES PRINCIPALES
+// ==============================================
+// ==============================================
+// PAGE STOCK - POUR LES 3 BOUTIQUES PRINCIPALES
+// ==============================================
+
+const STOCK_BOUTIQUES_AUTHORISEES = ['sebikotane', 'keur-massar', 'sacre-coeur-1', 'sacre-coeur-3'];
+const STOCK_CATEGORIES = [
+    { id: 1, name: "Très petits", weight: "1.0-1.1 kg" },
+    { id: 2, name: "Petits", weight: "1.2 kg" },
+    { id: 3, name: "Moyens-petits", weight: "1.3-1.4 kg" },
+    { id: 4, name: "Moyens", weight: "1.5-1.6 kg" },
+    { id: 5, name: "Moyens-grands", weight: "1.7-1.9 kg" },
+    { id: 6, name: "Grands", weight: "2.0 kg" },
+    { id: 7, name: "Très grands", weight: "2.1-2.3 kg" },
+    { id: 8, name: "Géants", weight: "+2.4 kg" }
+];
+
+function hasStockAccess() {
+    return currentBoutique && STOCK_BOUTIQUES_AUTHORISEES.includes(currentBoutique.id);
+}
+
+function showStockPage() {
+    if (!hasStockAccess()) {
+        showMessage('❌ Réservé aux dépôts principaux', 'error');
+        return;
+    }
+    
+    document.getElementById('mainInterface').style.display = 'none';
+    document.getElementById('invoicePage').style.display = 'none';
+    document.getElementById('debtsPage').style.display = 'none';
+    document.getElementById('caissePage').style.display = 'none';
+    document.getElementById('stockPage').style.display = 'block';
+    
+    document.getElementById('stockBoutiqueName').textContent = currentBoutique.name;
+    
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('stockDate').value = today;
+    
+    loadStockCategoriesForm();
+    loadCurrentStock();
+    loadStockHistory();
+}
+
+function loadStockCategoriesForm() {
+    const container = document.getElementById('stockCategoriesContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    STOCK_CATEGORIES.forEach(cat => {
+        const card = document.createElement('div');
+        card.className = 'stock-category-card';
+        card.innerHTML = `
+            <div class="stock-category-name">${cat.name}</div>
+            <div class="stock-category-weight">${cat.weight}</div>
+            <input type="number" 
+                   id="stock-cat-${cat.id}"
+                   class="stock-category-input"
+                   placeholder="Quantité reçue"
+                   min="0"
+                   value="0"
+                   step="1">
+        `;
+        container.appendChild(card);
+    });
+}
+
+async function loadCurrentStock() {
+    const container = document.getElementById('currentStockDisplay');
+    if (!container) return;
+    
+    try {
+        const stockDoc = await db.collection('boutique_stocks').doc(currentBoutique.id).get();
+        
+        if (!stockDoc.exists) {
+            container.innerHTML = `<div style="text-align:center;padding:40px;color:#999;grid-column:1/-1;">Aucun stock enregistré</div>`;
+            return;
+        }
+        
+        const stock = stockDoc.data();
+        const categories = stock.categories || {};
+        
+        let html = '';
+        let totalGeneral = 0;
+        
+        STOCK_CATEGORIES.forEach(cat => {
+            const qty = categories[cat.id] || 0;
+            totalGeneral += qty;
+            html += `
+                <div class="current-stock-card">
+                    <div class="stock-category-name">${cat.name}</div>
+                    <div class="stock-category-weight">${cat.weight}</div>
+                    <div class="current-stock-number">${qty}</div>
+                </div>
+            `;
+        });
+        
+        html += `<div class="current-stock-card" style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;">
+                    <div>TOTAL</div>
+                    <div class="current-stock-number" style="color:white;">${totalGeneral}</div>
+                </div>`;
+        
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `<div style="color:#ef4444;">Erreur: ${error.message}</div>`;
+    }
+}
+
+async function loadStockHistory() {
+    const tbody = document.getElementById('stockHistoryBody');
+    const filter = document.getElementById('stockHistoryFilter')?.value || 'all';
+    
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="5">Chargement...<\/td></tr>';
+    
+    try {
+        const snapshot = await db.collection('stock_mouvements')
+            .where('boutiqueDestinataire', '==', currentBoutique.id)
+            .get();
+        
+        let mouvements = [];
+        snapshot.forEach(doc => {
+            mouvements.push({ id: doc.id, ...doc.data() });
+        });
+        
+        mouvements.sort((a, b) => {
+            let da = a.date?.toDate ? a.date.toDate() : new Date(0);
+            let db = b.date?.toDate ? b.date.toDate() : new Date(0);
+            return db - da;
+        });
+        
+        if (filter !== 'all') {
+            mouvements = mouvements.filter(m => m.provenance === filter);
+        }
+        
+        if (mouvements.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5">Aucun mouvement</td></tr>';
+            return;
+        }
+        
+        let html = '';
+        mouvements.forEach(mvt => {
+            const date = mvt.date?.toDate ? mvt.date.toDate() : new Date(mvt.date);
+            const dateStr = `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`;
+            
+            let details = '';
+            let total = 0;
+            if (mvt.categories) {
+                for (const [catId, qty] of Object.entries(mvt.categories)) {
+                    if (qty > 0) {
+                        const cat = STOCK_CATEGORIES.find(c => c.id == catId);
+                        if (cat) details += `${cat.name}: ${qty}<br>`;
+                        total += qty;
+                    }
+                }
+            }
+            
+            let provenanceTexte = mvt.provenance === 'production' ? '🏭 Production' :
+                                 mvt.provenance === 'sebikotane' ? '🏪 Sébikotane' :
+                                 mvt.provenance === 'keur-massar' ? '🏪 Keur Massar' :
+                                 mvt.provenance === 'sacre-coeur-1' ? '🏪 Sacré Coeur 1' :
+                                 mvt.provenance === 'sacre-coeur-3' ? '🏪 Sacré Coeur 3' : mvt.provenance;
+            
+            html += `<tr>
+                        <td style="padding:8px;">${dateStr}</td>
+                        <td style="padding:8px;">${provenanceTexte}</td>
+                        <td style="padding:8px;">${mvt.commentaire || '-'}</td>
+                        <td style="padding:8px; font-size:0.8rem;">${details}</td>
+                        <td style="padding:8px; font-weight:bold;">${total}</td>
+                     </tr>`;
+        });
+        
+        tbody.innerHTML = html;
+    } catch (error) {
+        console.error(error);
+        tbody.innerHTML = `<tr><td colspan="5">Erreur: ${error.message}</td></tr>`;
+    }
+}
+
+async function saveStockReceived() {
+    const provenance = document.getElementById('stockProvenance')?.value;
+    const commentaire = document.getElementById('stockCommentaire')?.value || '';
+    
+    if (!provenance) {
+        showMessage('Sélectionnez une provenance', 'error');
+        return;
+    }
+    
+    const categories = {};
+    let totalPoulets = 0;
+    
+    for (let i = 1; i <= 8; i++) {
+        const input = document.getElementById(`stock-cat-${i}`);
+        if (input) {
+            const qty = parseInt(input.value) || 0;
+            if (qty > 0) {
+                categories[i] = qty;
+                totalPoulets += qty;
+            }
+        }
+    }
+    
+    if (totalPoulets === 0) {
+        showMessage('Entrez au moins une quantité', 'error');
+        return;
+    }
+    
+    showMessage('Enregistrement...', 'warning');
+    
+    try {
+        // Ajouter mouvement
+        await db.collection('stock_mouvements').add({
+            boutiqueDestinataire: currentBoutique.id,
+            boutiqueDestinataireNom: currentBoutique.name,
+            provenance: provenance,
+            categories: categories,
+            total: totalPoulets,
+            commentaire: commentaire,
+            date: firebase.firestore.FieldValue.serverTimestamp(),
+            dateReception: document.getElementById('stockDate').value,
+            type: 'reception'
+        });
+        
+        // Si provenance = autre boutique, diminuer son stock
+        if (provenance !== 'production') {
+            const sourceDoc = await db.collection('boutique_stocks').doc(provenance).get();
+            let sourceCat = sourceDoc.exists ? sourceDoc.data().categories || {} : {};
+            
+            for (const [catId, qty] of Object.entries(categories)) {
+                sourceCat[catId] = Math.max(0, (sourceCat[catId] || 0) - qty);
+            }
+            
+            await db.collection('boutique_stocks').doc(provenance).set({ categories: sourceCat, lastUpdated: new Date() }, { merge: true });
+        }
+        
+        // Augmenter stock boutique actuelle
+        const currentDoc = await db.collection('boutique_stocks').doc(currentBoutique.id).get();
+        let currentCat = currentDoc.exists ? currentDoc.data().categories || {} : {};
+        
+        for (const [catId, qty] of Object.entries(categories)) {
+            currentCat[catId] = (currentCat[catId] || 0) + qty;
+        }
+        
+        await db.collection('boutique_stocks').doc(currentBoutique.id).set({
+            categories: currentCat,
+            boutiqueId: currentBoutique.id,
+            boutiqueName: currentBoutique.name,
+            lastUpdated: new Date()
+        }, { merge: true });
+        
+        showMessage(`✅ ${totalPoulets} poulets ajoutés !`, 'success');
+        
+        // Reset formulaire
+        for (let i = 1; i <= 8; i++) {
+            const input = document.getElementById(`stock-cat-${i}`);
+            if (input) input.value = 0;
+        }
+        document.getElementById('stockCommentaire').value = '';
+        document.getElementById('stockProvenance').value = '';
+        
+        await loadCurrentStock();
+        await loadStockHistory();
+        
+    } catch (error) {
+        console.error(error);
+        showMessage(`❌ Erreur: ${error.message}`, 'error');
+    }
+}
+
+// Événements Stock
+function initStockEvents() {
+    const stockBtn = document.getElementById('stockBtn');
+    if (stockBtn) stockBtn.onclick = showStockPage;
+    
+    const backBtn = document.getElementById('backFromStockBtn');
+    if (backBtn) backBtn.onclick = function() {
+        document.getElementById('stockPage').style.display = 'none';
+        document.getElementById('mainInterface').style.display = 'block';
+    };
+    
+    const saveBtn = document.getElementById('saveStockBtn');
+    if (saveBtn) saveBtn.onclick = saveStockReceived;
+    
+    const resetBtn = document.getElementById('resetStockFormBtn');
+    if (resetBtn) resetBtn.onclick = function() {
+        for (let i = 1; i <= 8; i++) {
+            const input = document.getElementById(`stock-cat-${i}`);
+            if (input) input.value = 0;
+        }
+        document.getElementById('stockCommentaire').value = '';
+        document.getElementById('stockProvenance').value = '';
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('stockDate').value = today;
+    };
+    
+    const refreshBtn = document.getElementById('refreshHistoryBtn');
+    if (refreshBtn) refreshBtn.onclick = loadStockHistory;
+    
+    const filterSelect = document.getElementById('stockHistoryFilter');
+    if (filterSelect) filterSelect.onchange = loadStockHistory;
+}
+
+// Initialiser au chargement
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initStockEvents);
+} else {
+    initStockEvents();
+}
+
+function updateStockButtonVisibility() {
+    const stockBtn = document.getElementById('stockBtn');
+    if (stockBtn) {
+        stockBtn.style.display = hasStockAccess() ? 'flex' : 'none';
+    }
+}
+
+// Appeler cette fonction après la connexion
+// Dans loginSuccess(), ajoutez : updateStockButtonVisibility();
     </script>
-   
+   <!-- ========== PAGE STOCK POUR LES 3 BOUTIQUES PRINCIPALES ========== -->
+<div id="stockPage" class="main-interface invoice-page" style="display: none;">
+    <button id="backFromStockBtn" class="back-btn">
+        <i class="fas fa-arrow-left"></i> Retour
+    </button>
+    
+    <h2 style="margin-bottom: 20px; color: #333;">
+        <i class="fas fa-boxes"></i> GESTION DU STOCK - <span id="stockBoutiqueName"></span>
+    </h2>
+    
+    <!-- SECTION: AJOUTER UN STOCK -->
+    <div class="client-info" style="margin-bottom: 20px; background: #f0fdf4; border-left: 4px solid #10b981;">
+        <h3 style="margin-bottom: 15px; color: #065f46;">
+            <i class="fas fa-plus-circle"></i> 📦 AJOUTER UN STOCK REÇU
+        </h3>
+        
+        <div class="info-grid">
+            <div class="input-group">
+                <label>📅 Date de réception</label>
+                <input type="date" id="stockDate" class="form-input">
+            </div>
+            
+            <div class="input-group">
+                <label>📍 Provenance</label>
+                <select id="stockProvenance" class="form-input">
+                    <option value="">-- Sélectionner --</option>
+                    <option value="production">🏭 Production directe</option>
+                    <option value="sebikotane">🏪 Sébikotane</option>
+                    <option value="keur-massar">🏪 Keur Massar</option>
+                    <option value="sacre-coeur-1">🏪 Sacré Coeur 1</option>
+                    <option value="sacre-coeur-3">🏪 Sacré Coeur 3</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label>📝 Commentaire (optionnel)</label>
+                <input type="text" id="stockCommentaire" class="form-input" placeholder="Ex: Transfert, Achat, etc.">
+            </div>
+        </div>
+        
+        <h4 style="margin: 20px 0 10px 0;">🥩 POULETS REÇUS PAR CATÉGORIE</h4>
+        
+        <div id="stockCategoriesContainer" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+            <!-- Les 8 catégories seront générées ici -->
+        </div>
+        
+        <div style="display: flex; gap: 15px; margin-top: 20px;">
+            <button id="saveStockBtn" class="btn btn-save" style="background: #10b981;">
+                <i class="fas fa-save"></i> ENREGISTRER LE STOCK REÇU
+            </button>
+            <button id="resetStockFormBtn" class="btn" style="background: #f59e0b; color: white;">
+                <i class="fas fa-undo"></i> Réinitialiser
+            </button>
+        </div>
+    </div>
+    
+    <!-- SECTION: STOCK ACTUEL -->
+    <div class="client-info" style="margin-bottom: 20px; background: #eff6ff; border-left: 4px solid #3b82f6;">
+        <h3 style="margin-bottom: 15px; color: #1e40af;">
+            <i class="fas fa-chart-simple"></i> 📊 STOCK ACTUEL
+        </h3>
+        <div id="currentStockDisplay" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+            <div style="text-align: center; padding: 40px; color: #999; grid-column: 1/-1;">
+                <i class="fas fa-spinner fa-spin"></i> Chargement du stock...
+            </div>
+        </div>
+    </div>
+    
+    <!-- SECTION: HISTORIQUE DES MOUVEMENTS -->
+    <div class="client-info" style="background: white; border-left: 4px solid #8b5cf6;">
+        <h3 style="margin-bottom: 15px; color: #6d28d9;">
+            <i class="fas fa-history"></i> 📜 HISTORIQUE DES MOUVEMENTS
+        </h3>
+        
+        <div class="info-grid" style="margin-bottom: 15px;">
+            <div class="input-group">
+                <label>🔍 Filtrer par provenance</label>
+                <select id="stockHistoryFilter" class="form-input">
+                    <option value="all">Tous</option>
+                    <option value="production">Production directe</option>
+                    <option value="sebikotane">Sébikotane</option>
+                    <option value="keur-massar">Keur Massar</option>
+                    <option value="sacre-coeur-1">Sacré Coeur 1</option>
+                    <option value="sacre-coeur-3">Sacré Coeur 3</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>&nbsp;</label>
+                <button id="refreshHistoryBtn" class="btn btn-generate" style="background: #8b5cf6;">
+                    <i class="fas fa-sync-alt"></i> Rafraîchir
+                </button>
+            </div>
+        </div>
+        
+        <div style="overflow-x: auto;">
+            <table class="records-table" style="width: 100%;">
+                <thead>
+                    <tr style="background: #f3e8ff;">
+                        <th>Date</th>
+                        <th>Provenance</th>
+                        <th>Commentaire</th>
+                        <th>Détails des quantités</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody id="stockHistoryBody">
+                    <tr><td colspan="5" style="text-align: center; padding: 40px;">Chargement...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 </body>
-</html>      
+</html>       
