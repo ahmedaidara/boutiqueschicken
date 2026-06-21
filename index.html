@@ -7567,7 +7567,7 @@ async function loadStockHistory() {
     const filter = document.getElementById('stockHistoryFilter')?.value || 'all';
     
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="5">Chargement...<\/td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6">Chargement...</td></tr>'; // ← Changé de 5 à 6
     
     try {
         const snapshot = await db.collection('stock_mouvements')
@@ -7590,7 +7590,7 @@ async function loadStockHistory() {
         }
         
         if (mouvements.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5">Aucun mouvement</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6">Aucun mouvement</td></tr>'; // ← Changé de 5 à 6
             return;
         }
         
@@ -7623,16 +7623,91 @@ async function loadStockHistory() {
                         <td style="padding:8px;">${mvt.commentaire || '-'}</td>
                         <td style="padding:8px; font-size:0.8rem;">${details}</td>
                         <td style="padding:8px; font-weight:bold;">${total}</td>
+                        <td style="padding:8px; text-align:center;">
+                            <button onclick="deleteStockMovement('${mvt.id}')" 
+                                    style="background: #fee2e2; border: none; color: #dc2626; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s;"
+                                    onmouseover="this.style.background='#fecaca'"
+                                    onmouseout="this.style.background='#fee2e2'"
+                                    title="Supprimer ce mouvement">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
                      </tr>`;
         });
         
         tbody.innerHTML = html;
     } catch (error) {
         console.error(error);
-        tbody.innerHTML = `<tr><td colspan="5">Erreur: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6">Erreur: ${error.message}</td></tr>`;
     }
 }
-
+async function deleteStockMovement(movementId) {
+    if (!confirm('⚠️ Êtes-vous sûr de vouloir supprimer ce mouvement ?\n\nCette action va :\n- Supprimer le mouvement de l\'historique\n- Retirer les quantités du stock actuel\n\nCette action est IRREVERSIBLE !')) {
+        return;
+    }
+    
+    try {
+        // 1. Récupérer le mouvement
+        const mvtDoc = await db.collection('stock_mouvements').doc(movementId).get();
+        
+        if (!mvtDoc.exists) {
+            showMessage('❌ Mouvement non trouvé', 'error');
+            return;
+        }
+        
+        const mvt = mvtDoc.data();
+        
+        // 2. Vérifier que c'est bien pour cette boutique
+        if (mvt.boutiqueDestinataire !== currentBoutique.id) {
+            showMessage('❌ Vous ne pouvez pas supprimer ce mouvement', 'error');
+            return;
+        }
+        
+        // 3. Si la provenance est une autre boutique, lui remettre le stock
+        if (mvt.provenance !== 'production') {
+            const sourceDoc = await db.collection('boutique_stocks').doc(mvt.provenance).get();
+            let sourceCat = sourceDoc.exists ? sourceDoc.data().categories || {} : {};
+            
+            // Ajouter les quantités à la source
+            for (const [catId, qty] of Object.entries(mvt.categories)) {
+                sourceCat[catId] = (sourceCat[catId] || 0) + qty;
+            }
+            
+            await db.collection('boutique_stocks').doc(mvt.provenance).set({ 
+                categories: sourceCat, 
+                lastUpdated: new Date() 
+            }, { merge: true });
+        }
+        
+        // 4. Retirer les quantités du stock de la boutique actuelle
+        const currentDoc = await db.collection('boutique_stocks').doc(currentBoutique.id).get();
+        let currentCat = currentDoc.exists ? currentDoc.data().categories || {} : {};
+        
+        for (const [catId, qty] of Object.entries(mvt.categories)) {
+            currentCat[catId] = Math.max(0, (currentCat[catId] || 0) - qty);
+        }
+        
+        await db.collection('boutique_stocks').doc(currentBoutique.id).set({
+            categories: currentCat,
+            boutiqueId: currentBoutique.id,
+            boutiqueName: currentBoutique.name,
+            lastUpdated: new Date()
+        }, { merge: true });
+        
+        // 5. Supprimer le mouvement
+        await db.collection('stock_mouvements').doc(movementId).delete();
+        
+        showMessage('✅ Mouvement supprimé avec succès', 'success');
+        
+        // 6. Rafraîchir les affichages
+        await loadCurrentStock();
+        await loadStockHistory();
+        
+    } catch (error) {
+        console.error(error);
+        showMessage(`❌ Erreur: ${error.message}`, 'error');
+    }
+}
 async function saveStockReceived() {
     const provenance = document.getElementById('stockProvenance')?.value;
     const commentaire = document.getElementById('stockCommentaire')?.value || '';
