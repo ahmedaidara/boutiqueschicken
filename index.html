@@ -4412,46 +4412,40 @@ function selectProductionForInvoice() {
                 const dateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth()+1).padStart(2, '0')}/${date.getFullYear()}`;
                 
                 // Calculer le stock RESTANT GLOBAL (comme dans CATEG)
-                const totalInitial = production.initialStock || 0;
-                const totalVendu = (production.small1Sold || 0) + (production.small2Sold || 0) +
-                                   (production.medium1Sold || 0) + (production.medium2Sold || 0) +
-                                   (production.large1Sold || 0) + (production.large2Sold || 0) +
-                                   (production.xlarge1Sold || 0) + (production.xlarge2Sold || 0);
-                const totalPerduDonne = (production.lost || 0) + (production.given || 0);
-                const stockRestant = Math.max(0, totalInitial - totalVendu - totalPerduDonne);
+              // Calculer le stock RESTANT GLOBAL (identique au tableau de bord)
+const totalInitial = production.initialStock || 0;
+
+// Total vendu (toutes catégories)
+const totalVendu = (production.small1Sold || 0) + (production.small2Sold || 0) +
+                   (production.medium1Sold || 0) + (production.medium2Sold || 0) +
+                   (production.large1Sold || 0) + (production.large2Sold || 0) +
+                   (production.xlarge1Sold || 0) + (production.xlarge2Sold || 0);
+
+// Total perdu + donné (comme dans votre dashboard)
+const totalPertes = (production.lost || 0) + (production.given || 0);
+
+// Stock restant = Initial - Vendu - Pertes - Donnés
+const stockRestant = Math.max(0, totalInitial - totalVendu - totalPertes);
                 
                 if (stockRestant > 0) {
                     productionsDisponibles++;
                     
-                    productionsHTML += `
-                        <div class="production-card" data-production-id="${doc.id}"
-                             style="background: white; border: 2px solid ${currentBoutique.id === 'sacre-coeur' ? '#3B82F6' : '#10B981'}; border-radius: 10px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s;">
-                            <div style="display: flex; justify-content: space-between; align-items: start;">
-                                <div>
-                                    <div style="font-weight: bold; color: #333;">Production du ${dateStr}</div>
-                                    <div style="margin-top: 8px;">
-                                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 3px;">
-                                            <span style="color: #666;">Stock total:</span>
-                                            <span style="font-weight: bold; color: #3b82f6;">${totalInitial}</span>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 3px;">
-                                            <span style="color: #666;">Vendu:</span>
-                                            <span style="color: #8b5cf6; font-weight: bold;">${totalVendu}</span>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-top: 5px; padding-top: 5px; border-top: 1px solid #e0e0e0;">
-                                            <span style="color: #666;">RESTANT:</span>
-                                            <span style="font-weight: bold; color: ${stockRestant > 0 ? '#10b981' : '#ef4444'};">
-                                                ${stockRestant} poulets
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div style="background: #f0f9ff; padding: 5px 10px; border-radius: 5px; font-size: 0.8rem; font-weight: bold; color: #0369a1;">
-                                    STOCK GLOBAL
-                                </div>
-                            </div>
-                        </div>
-                    `;
+                   productionsHTML += `
+    <div class="production-card" data-production-id="${doc.id}"
+         style="background: white; border: 2px solid ${currentBoutique.id === 'sacre-coeur' ? '#3B82F6' : '#10B981'}; border-radius: 10px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-weight: bold; color: #333; font-size: 1.1rem;">Production du ${dateStr}</div>
+                <div style="margin-top: 5px; font-size: 1.3rem; font-weight: bold; color: ${stockRestant > 0 ? '#10b981' : '#ef4444'};">
+                     
+                </div>
+            </div>
+            <div style="background: ${stockRestant > 0 ? '#f0fdf4' : '#fee2e2'}; padding: 8px 15px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; color: ${stockRestant > 0 ? '#10b981' : '#dc2626'};">
+                ${stockRestant > 0 ? '✅ Entrer' : '❌ Épuisé'}
+            </div>
+        </div>
+    </div>
+`;
                 }
             });
             
